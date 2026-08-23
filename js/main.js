@@ -84,14 +84,13 @@ const CharacterHub = {
         document.getElementById('char-hl-streak').innerText = `${state.player.consecutiveDays || 1}d`;
         document.getElementById('char-hl-loot').innerText = state.inventory.length;
 
-        // Painel de Atributos e Distribuição de Pontos
         const attrsList = document.getElementById('attributes-bars-list');
         const availablePoints = state.player.attributePoints || 0;
         
         let headerBanner = '';
         if (availablePoints > 0) {
             headerBanner = `
-                <div style="background: rgba(212, 175, 55, 0.18); border: 1px solid var(--gold); padding: 8px 12px; border-radius: 6px; margin-bottom: 12px; text-align: center; color: var(--gold); font-weight: bold; font-size: 0.9rem; animation: pulse 2s infinite;">
+                <div style="background: rgba(212, 175, 55, 0.18); border: 1px solid var(--gold); padding: 8px 12px; border-radius: 6px; margin-bottom: 12px; text-align: center; color: var(--gold); font-weight: bold; font-size: 0.9rem;">
                     ✦ ${availablePoints} Ponto(s) de Atributo Disponíveis para Distribuir!
                 </div>`;
         } else {
@@ -161,12 +160,33 @@ const CharacterHub = {
             const frame = document.getElementById(`slot-${slotKey}`);
             if (!frame) return;
 
+            const slotMeta = DATABASE.slots[slotKey];
             const itemId = state.equipment[slotKey];
+
             if (itemId && DATABASE.items[itemId]) {
                 const item = DATABASE.items[itemId];
-                frame.innerHTML = `<img src="${item.icon}" alt="${item.name}" style="border:1px solid ${DATABASE.rarities[item.rarity].color}; border-radius:4px; padding:2px;">`;
+                const rarityMeta = DATABASE.rarities[item.rarity] || DATABASE.rarities.common;
+                frame.className = 'slot-frame equipped';
+                frame.style.borderColor = rarityMeta.color;
+                frame.innerHTML = `
+                    <img src="${item.icon}" alt="${item.name}" class="slot-item-img">
+                    <div class="slot-meta-text">
+                        <span class="slot-cat-name">${slotMeta.name}</span>
+                        <strong class="slot-equipped-title" style="color:${rarityMeta.color};">${item.name}</strong>
+                    </div>
+                `;
             } else {
-                frame.innerHTML = `<i class="fa-solid ${DATABASE.slots[slotKey].icon} slot-placeholder-icon"></i>`;
+                frame.className = 'slot-frame empty';
+                frame.style.borderColor = '#1c2438';
+                frame.innerHTML = `
+                    <div class="slot-empty-icon-wrap">
+                        <i class="fa-solid ${slotMeta.icon} slot-placeholder-icon"></i>
+                    </div>
+                    <div class="slot-meta-text">
+                        <span class="slot-cat-name">${slotMeta.name}</span>
+                        <span class="slot-empty-placeholder">Vazio</span>
+                    </div>
+                `;
             }
         });
     },
@@ -191,21 +211,26 @@ const CharacterHub = {
         }
 
         if (items.length === 0) {
-            bag.innerHTML = '<div style="grid-column:1/-1; color:var(--text-muted); font-size:0.85rem; padding:20px; text-align:center;">Nenhum item nesta categoria.</div>';
+            bag.innerHTML = '<div style="grid-column:1/-1; color:var(--text-muted); font-size:0.85rem; padding:30px; text-align:center;">Nenhum item nesta categoria.</div>';
             return;
         }
 
         items.forEach(item => {
             const isEquipped = Object.values(state.equipment).includes(item.id);
-            const slot = document.createElement('div');
-            slot.className = 'slot-frame';
-            slot.style.borderColor = DATABASE.rarities[item.rarity].color;
-            slot.innerHTML = `
+            const rarityMeta = DATABASE.rarities[item.rarity] || DATABASE.rarities.common;
+            const slotMeta = DATABASE.slots[item.slot] || { name: 'Item' };
+
+            const card = document.createElement('div');
+            card.className = 'bag-card-item';
+            card.style.borderColor = rarityMeta.color;
+            card.innerHTML = `
+                ${isEquipped ? '<span class="bag-badge-equipped">EQUIPADO</span>' : ''}
                 <img src="${item.icon}" alt="${item.name}">
-                ${isEquipped ? '<span style="position:absolute; bottom:2px; right:2px; background:var(--gold); color:#000; font-size:9px; font-weight:bold; padding:1px 3px; border-radius:2px;">E</span>' : ''}
+                <strong class="bag-card-name" style="color:${rarityMeta.color};">${item.name}</strong>
+                <span class="bag-card-slot">${slotMeta.name}</span>
             `;
-            slot.onclick = () => this.inspectItem(item.id);
-            bag.appendChild(slot);
+            card.onclick = () => this.inspectItem(item.id);
+            bag.appendChild(card);
         });
     },
 
@@ -292,10 +317,15 @@ const CharacterHub = {
         });
 
         const actionsBox = document.getElementById('inspect-actions-box');
-        const isEquipped = Object.values(state.equipment).includes(item.id);
+        const equippedInSlot = Object.keys(state.equipment).find(k => state.equipment[k] === item.id);
 
-        if (isEquipped) {
-            actionsBox.innerHTML = `<button class="btn-danger" style="width:100%;" onclick="CharacterHub.unequip('${targetSlot}')">Desequipar</button>`;
+        if (equippedInSlot) {
+            actionsBox.innerHTML = `<button class="btn-danger" style="width:100%;" onclick="CharacterHub.unequip('${equippedInSlot}')">Desequipar</button>`;
+        } else if (item.slot === 'ring1' || item.slot === 'ring2') {
+            actionsBox.innerHTML = `
+                <button class="btn-primary" style="flex:1;" onclick="CharacterHub.equip('${item.id}', 'ring1')">Equipar no Anel 1</button>
+                <button class="btn-primary" style="flex:1;" onclick="CharacterHub.equip('${item.id}', 'ring2')">Equipar no Anel 2</button>
+            `;
         } else {
             actionsBox.innerHTML = `<button class="btn-primary" style="width:100%;" onclick="CharacterHub.equip('${item.id}', '${targetSlot}')">Equipar</button>`;
         }
@@ -539,7 +569,7 @@ const UI = {
             }
         });
 
-        const todayStr = new Date().toISOString().split('T')[0];
+        const todayStr = CombatEngine.getLocalDateString();
         const todaySessions = state.sessions.filter(s => s.date === todayStr);
         const todayMinutes = todaySessions.reduce((acc, cur) => acc + (cur.durationMinutes || 0), 0);
         const todayDmg = todaySessions.reduce((acc, cur) => acc + (cur.damage || 0), 0);
@@ -634,57 +664,6 @@ const UI = {
         document.getElementById('day-modal').classList.remove('active');
     }
 };
-
-(function initCanvasFX() {
-    const canvas = document.getElementById('fx-canvas');
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    let particles = [];
-    let animationId = null;
-
-    function resize() {
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
-    }
-    window.addEventListener('resize', resize);
-    resize();
-
-    for (let i = 0; i < 40; i++) {
-        particles.push({
-            x: Math.random() * canvas.width,
-            y: Math.random() * canvas.height,
-            size: Math.random() * 2 + 1,
-            speedY: Math.random() * 0.4 + 0.1,
-            opacity: Math.random() * 0.4 + 0.1
-        });
-    }
-
-    function renderParticles() {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        particles.forEach(p => {
-            ctx.fillStyle = `rgba(212, 175, 55, ${p.opacity})`;
-            ctx.beginPath();
-            ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-            ctx.fill();
-
-            p.y -= p.speedY;
-            if (p.y < 0) {
-                p.y = canvas.height;
-                p.x = Math.random() * canvas.width;
-            }
-        });
-        animationId = requestAnimationFrame(renderParticles);
-    }
-    renderParticles();
-
-    document.addEventListener('visibilitychange', () => {
-        if (document.hidden) {
-            cancelAnimationFrame(animationId);
-        } else {
-            renderParticles();
-        }
-    });
-})();
 
 window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {

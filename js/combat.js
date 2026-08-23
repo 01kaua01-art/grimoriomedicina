@@ -1,4 +1,20 @@
 const CombatEngine = {
+    getLocalDateString(date = new Date()) {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    },
+
+    getDaysDifference(fromDateStr, toDateStr) {
+        if (!fromDateStr || !toDateStr) return 0;
+        const [y1, m1, d1] = fromDateStr.split('-').map(Number);
+        const [y2, m2, d2] = toDateStr.split('-').map(Number);
+        const utc1 = Date.UTC(y1, m1 - 1, d1);
+        const utc2 = Date.UTC(y2, m2 - 1, d2);
+        return Math.floor((utc2 - utc1) / (1000 * 60 * 60 * 24));
+    },
+
     getTotalAttributes() {
         const state = Storage.get();
         const total = { ...state.player.baseAttributes };
@@ -134,6 +150,7 @@ const CombatEngine = {
     rollLoot(bossRarity) {
         const attrs = this.getTotalAttributes();
         const fortuna = attrs.fortuna || 1;
+        const state = Storage.get();
 
         const roll = Math.random() * 100;
         let rarity = 'common';
@@ -141,11 +158,23 @@ const CombatEngine = {
 
         if (roll < (1 + (fortuna * 0.3) + baseBonus)) rarity = 'legendary';
         else if (roll < (6 + (fortuna * 0.5) + baseBonus)) rarity = 'epic';
-        else if (roll < (20 + (fortuna * 0.8) + baseBonus)) rarity = 'rare';
-        else if (roll < 55) rarity = 'uncommon';
+        else if (roll < (22 + (fortuna * 0.8) + baseBonus)) rarity = 'rare';
+        else if (roll < 60) rarity = 'uncommon';
 
-        const matchingItems = Object.values(DATABASE.items).filter(i => i.rarity === rarity);
-        return matchingItems[Math.floor(Math.random() * matchingItems.length)] || DATABASE.items.alianca_academico;
+        // 1. Tenta pegar itens da raridade sorteada que o jogador ainda não tem
+        let matchingItems = Object.values(DATABASE.items).filter(i => i.rarity === rarity);
+        let unobtained = matchingItems.filter(i => !state.inventory.includes(i.id));
+
+        // 2. Se já tem todos dessa raridade, tenta qualquer item ainda não descoberto no jogo
+        if (unobtained.length === 0) {
+            const allUnobtained = Object.values(DATABASE.items).filter(i => !state.inventory.includes(i.id));
+            if (allUnobtained.length > 0) {
+                return allUnobtained[Math.floor(Math.random() * allUnobtained.length)];
+            }
+        }
+
+        const pool = unobtained.length > 0 ? unobtained : (matchingItems.length > 0 ? matchingItems : Object.values(DATABASE.items));
+        return pool[Math.floor(Math.random() * pool.length)];
     },
 
     checkTrophies(state) {
@@ -178,7 +207,11 @@ const CombatEngine = {
             state.boss.bossesDefeated = (state.boss.bossesDefeated || 0) + 1;
 
             droppedItem = this.rollLoot(state.boss.rarity);
-            state.inventory.push(droppedItem.id);
+            
+            // Só adiciona ao inventário se ainda não possuir
+            if (!state.inventory.includes(droppedItem.id)) {
+                state.inventory.push(droppedItem.id);
+            }
 
             state.bestiary[state.boss.id] = state.bestiary[state.boss.id] || {
                 name: state.boss.name,
@@ -213,14 +246,10 @@ const CombatEngine = {
             state.player.attributePoints = (state.player.attributePoints || 0) + 2;
         }
 
-        // Lógica de Sequência Diária (Streak)
-        const today = new Date();
-        const todayStr = today.toISOString().split('T')[0];
+        const todayStr = this.getLocalDateString();
 
         if (state.player.lastStudyDate) {
-            const lastDate = new Date(state.player.lastStudyDate);
-            const diffMs = today - lastDate;
-            const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+            const diffDays = this.getDaysDifference(state.player.lastStudyDate, todayStr);
 
             if (diffDays === 1) {
                 state.player.consecutiveDays = (state.player.consecutiveDays || 0) + 1;
@@ -232,7 +261,6 @@ const CombatEngine = {
         }
         state.player.lastStudyDate = todayStr;
 
-        // 1. Cria a estrutura da sessão primeiro
         const sessionRecord = {
             id: Date.now().toString(),
             date: todayStr,
@@ -247,7 +275,6 @@ const CombatEngine = {
             isCrit: outcome.isCrit
         };
 
-        // 2. Adiciona a sessão ao histórico e salva o estado
         state.sessions.unshift(sessionRecord);
         this.checkTrophies(state);
         Storage.save(state);

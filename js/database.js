@@ -88,7 +88,8 @@ const DATABASE = {
         active_combo: { name: 'Combo Ativo / Explicação', damage_per_hour: 2000, xp_per_hour: 150 },
         mock_exam: { name: 'Simulado de Alta Carga', damage_per_hour: 2500, xp_per_hour: 200 }
     },
-animationPool: {
+
+    animationPool: {
         common: [
             { id: 'quick_slash', label: '⚔️ CORTE RÁPIDO', playerClass: 'anim-slash', bossClass: 'anim-hit', soundType: 'slash', weight: 40 },
             { id: 'thrust', label: '🗡️ ESTOCADA PRECISA', playerClass: 'anim-thrust', bossClass: 'anim-hit', soundType: 'slash', weight: 30 },
@@ -115,6 +116,7 @@ animationPool: {
             { id: 'execution', label: '💀 EXECUÇÃO CLÍNICA', playerClass: 'anim-execute', bossClass: 'anim-execute-boss', soundType: 'execute', weight: 10 }
         ]
     },
+
     trophies: [
         { id: 'first_blood', name: 'Primeira Vitória', desc: 'Derrote seu primeiro Boss Global.', icon: 'fa-skull', check: s => (s.boss.bossesDefeated || 0) >= 1 },
         { id: 'titan_hunter', name: 'Caçador de Titãs', desc: 'Derrote 10 Bosses Globais.', icon: 'fa-shield-halved', check: s => (s.boss.bossesDefeated || 0) >= 10 },
@@ -127,9 +129,38 @@ animationPool: {
         }}
     ],
 
-    // ARSENAL MÉDICO FANTÁSTICO: 100% DESVINCULADO DE DISCIPLINAS ESPECÍFICAS
     items: {
         // --- ARMAS ---
+        bisturi_basico: {
+            id: 'bisturi_basico',
+            name: 'Bisturi Cirúrgico N° 10',
+            slot: 'weapon',
+            rarity: 'common',
+            icon: 'https://api.iconify.design/game-icons/scalpel.svg?color=%2395a5a6',
+            stats: { poder: 4 },
+            effect: 'Instrumento inicial padrão para incisões anatômicas de estudo.',
+            origin: 'O primeiro contato de todo estudante no laboratório.'
+        },
+        pinca_hemostatica: {
+            id: 'pinca_hemostatica',
+            name: 'Pinça Hemostática',
+            slot: 'weapon',
+            rarity: 'uncommon',
+            icon: 'https://api.iconify.design/game-icons/pincers.svg?color=%232ecc71',
+            stats: { poder: 6, retencao: 4 },
+            effect: 'Sessões sequenciais no mesmo dia acumulam +5% de dano progressivo.',
+            origin: 'Impede o sangramento de rendimento ao longo do dia.'
+        },
+        tesoura_mayo: {
+            id: 'tesoura_mayo',
+            name: 'Tesoura de Mayo',
+            slot: 'weapon',
+            rarity: 'uncommon',
+            icon: 'https://api.iconify.design/game-icons/scissors.svg?color=%232ecc71',
+            stats: { poder: 5, foco: 5 },
+            effect: 'Sessões concluídas sem interrupção causam +12% de Dano extra.',
+            origin: 'Corta qualquer distração externa durante o cronômetro.'
+        },
         bisturi_anatomista: {
             id: 'bisturi_anatomista',
             name: 'Bisturi do Anatomista',
@@ -149,26 +180,6 @@ animationPool: {
             stats: { poder: 12, precisao: 8 },
             effect: 'O primeiro golpe de estudo do dia recebe +20% de Dano de impacto.',
             origin: 'Concedido a quem inicia o dia de combate sem hesitação.'
-        },
-        pinca_hemostatica: {
-            id: 'pinca_hemostatica',
-            name: 'Pinça Hemostática',
-            slot: 'weapon',
-            rarity: 'rare',
-            icon: 'https://api.iconify.design/game-icons/pincers.svg?color=%233498db',
-            stats: { poder: 7, retencao: 5 },
-            effect: 'Sessões sequenciais no mesmo dia acumulam +5% de dano progressivo.',
-            origin: 'Impede o sangramento de rendimento ao longo do dia.'
-        },
-        tesoura_mayo: {
-            id: 'tesoura_mayo',
-            name: 'Tesoura de Mayo',
-            slot: 'weapon',
-            rarity: 'rare',
-            icon: 'https://api.iconify.design/game-icons/scissors.svg?color=%233498db',
-            stats: { poder: 5, foco: 5 },
-            effect: 'Sessões concluídas sem interrupção causam +12% de Dano extra.',
-            origin: 'Corta qualquer distração externa durante o cronômetro.'
         },
         seringa_prata: {
             id: 'seringa_prata',
@@ -202,6 +213,16 @@ animationPool: {
         },
 
         // --- GRIMÓRIOS ---
+        manual_semiologia: {
+            id: 'manual_semiologia',
+            name: 'Manual de Propedêutica',
+            slot: 'grimoire',
+            rarity: 'uncommon',
+            icon: 'https://api.iconify.design/game-icons/book-cover.svg?color=%232ecc71',
+            stats: { intelecto: 5, precisao: 5 },
+            effect: '+5% de XP adicional em qualquer sessão de estudos.',
+            origin: 'Ensina os fundamentos da anamnese e do exame clínico.'
+        },
         grimorio_guyton: {
             id: 'grimorio_guyton',
             name: 'Grimório de Guyton',
@@ -237,7 +258,7 @@ animationPool: {
             name: 'Grimório de Robbins',
             slot: 'grimoire',
             rarity: 'epic',
-            icon: 'https://api.iconify.design/game-icons/secret-book.svg?color=%239b59b6', // Corrigido de tome para secret-book
+            icon: 'https://api.iconify.design/game-icons/secret-book.svg?color=%239b59b6',
             stats: { intelecto: 10, foco: 8 },
             effect: 'Sessões extensas de 90 min (Raid) concedem +25% de XP bônus.',
             origin: 'O peso monumental dos processos patológicos estruturados.'
@@ -264,6 +285,16 @@ animationPool: {
         },
 
         // --- ARMADURAS ---
+        jaleco_algodao: {
+            id: 'jaleco_algodao',
+            name: 'Jaleco de Algodão',
+            slot: 'armor',
+            rarity: 'uncommon',
+            icon: 'https://api.iconify.design/game-icons/lab-coat.svg?color=%232ecc71',
+            stats: { resistencia: 6, foco: 3 },
+            effect: 'Protege contra a perda precoce de ritmo nas sessões diárias.',
+            origin: 'O uniforme clássico de proteção biológica e disciplina.'
+        },
         coracao_ferro: {
             id: 'coracao_ferro',
             name: 'Coração de Ferro',
@@ -296,6 +327,16 @@ animationPool: {
         },
 
         // --- RELÍQUIAS ---
+        diapasao_clinico: {
+            id: 'diapasao_clinico',
+            name: 'Diapasão Neurológico',
+            slot: 'relic',
+            rarity: 'uncommon',
+            icon: 'https://api.iconify.design/game-icons/tuning-fork.svg?color=%232ecc71',
+            stats: { foco: 6, precisao: 4 },
+            effect: 'Vibrações que mantêm o raciocínio focado em sessões de questões.',
+            origin: 'Usado para testar sensibilidade vibratória e reflexos cognitivos.'
+        },
         ampulheta_foco: {
             id: 'ampulheta_foco',
             name: 'Ampulheta do Foco',
@@ -331,7 +372,7 @@ animationPool: {
             name: 'Cérebro de Mnemosyne',
             slot: 'relic',
             rarity: 'legendary',
-            icon: 'https://api.iconify.design/game-icons/brain.svg?color=%23f1c40f', // Corrigido de mind-slice para brain
+            icon: 'https://api.iconify.design/game-icons/brain.svg?color=%23f1c40f',
             stats: { retencao: 20, intelecto: 10 },
             effect: 'Uma vez por dia, sua primeira sessão de revisão recebe +50% de eficiência.',
             origin: 'A relíquia da deusa da memória que impede o declínio da curva de esquecimento.'
@@ -368,35 +409,15 @@ animationPool: {
         },
 
         // --- ACESSÓRIOS ---
-        estetoscopio_laennec: {
-            id: 'estetoscopio_laennec',
-            name: 'Estetoscópio de Laennec',
-            slot: 'accessory',
-            rarity: 'legendary',
-            icon: 'https://api.iconify.design/game-icons/stethoscope.svg?color=%23f1c40f',
-            stats: { precisao: 14, intelecto: 10 },
-            effect: 'Sessões de 60+ minutos recebem um multiplicador adicional de +25% de XP.',
-            origin: 'O primeiro instrumento a auscultar os segredos ocultos no corpo humano.'
-        },
         estetoscopio_clinico: {
             id: 'estetoscopio_clinico',
             name: 'Estetoscópio do Clínico',
             slot: 'accessory',
-            rarity: 'rare',
-            icon: 'https://api.iconify.design/game-icons/stethoscope.svg?color=%233498db',
-            stats: { precisao: 10, poder: 6 },
+            rarity: 'uncommon',
+            icon: 'https://api.iconify.design/game-icons/stethoscope.svg?color=%232ecc71',
+            stats: { precisao: 7, poder: 4 },
             effect: '+12% de Dano ao estudar através de Questões e Casos Clínicos.',
             origin: 'O companheiro inseparável do médico em sua rotina diagnóstica.'
-        },
-        microscopio_patologista: {
-            id: 'microscopio_patologista',
-            name: 'Microscópio do Patologista',
-            slot: 'accessory',
-            rarity: 'epic',
-            icon: 'https://api.iconify.design/game-icons/microscope.svg?color=%239b59b6',
-            stats: { precisao: 12, intelecto: 6 },
-            effect: 'Aumenta em +15% as recompensas por blocos de questões resolvidas.',
-            origin: 'Permite examinar os mínimos detalhes conceituais.'
         },
         relogio_cirurgiao: {
             id: 'relogio_cirurgiao',
@@ -418,6 +439,26 @@ animationPool: {
             effect: 'Aumenta em +15% a recompensa de XP ao revisar erros de simulados.',
             origin: 'Projetada para esmiuçar pegadinhas e distratores de provas.'
         },
+        microscopio_patologista: {
+            id: 'microscopio_patologista',
+            name: 'Microscópio do Patologista',
+            slot: 'accessory',
+            rarity: 'epic',
+            icon: 'https://api.iconify.design/game-icons/microscope.svg?color=%239b59b6',
+            stats: { precisao: 12, intelecto: 6 },
+            effect: 'Aumenta em +15% as recompensas por blocos de questões resolvidas.',
+            origin: 'Permite examinar os mínimos detalhes conceituais.'
+        },
+        estetoscopio_laennec: {
+            id: 'estetoscopio_laennec',
+            name: 'Estetoscópio de Laennec',
+            slot: 'accessory',
+            rarity: 'legendary',
+            icon: 'https://api.iconify.design/game-icons/stethoscope.svg?color=%23f1c40f',
+            stats: { precisao: 14, intelecto: 10 },
+            effect: 'Sessões de 60+ minutos recebem um multiplicador adicional de +25% de XP.',
+            origin: 'O primeiro instrumento a auscultar os segredos ocultos no corpo humano.'
+        },
         coroa_clinico: {
             id: 'coroa_clinico',
             name: 'A Coroa do Clínico',
@@ -430,25 +471,25 @@ animationPool: {
         },
 
         // --- ANÉIS ---
+        alianca_academico: {
+            id: 'alianca_academico',
+            name: 'Aliança do Acadêmico',
+            slot: 'ring1',
+            rarity: 'common',
+            icon: 'https://api.iconify.design/game-icons/ring.svg?color=%2395a5a6',
+            stats: { poder: 3, intelecto: 3 },
+            effect: 'Equipamento básico de ingresso na jornada médica.',
+            origin: 'Forjado nos primeiros semestres de dedicação.'
+        },
         anel_concentracao: {
             id: 'anel_concentracao',
             name: 'Anel da Concentração',
             slot: 'ring1',
-            rarity: 'rare',
-            icon: 'https://api.iconify.design/game-icons/ring.svg?color=%233498db',
-            stats: { foco: 10, poder: 4 },
+            rarity: 'uncommon',
+            icon: 'https://api.iconify.design/game-icons/ring.svg?color=%232ecc71',
+            stats: { foco: 6, poder: 3 },
             effect: 'Aumenta o dano causado em blocos contínuos sem pausa.',
             origin: 'Emite uma pulsação sutil que afasta a procrastinação.'
-        },
-        anel_sinapse: {
-            id: 'anel_sinapse',
-            name: 'Anel da Sinapse',
-            slot: 'ring1',
-            rarity: 'epic',
-            icon: 'https://api.iconify.design/game-icons/ring.svg?color=%239b59b6',
-            stats: { intelecto: 10, foco: 6 },
-            effect: '+8% de XP em todas as sessões de estudo.',
-            origin: 'Acelera a neurotransmissão durante o aprendizado.'
         },
         marcapasso_ancestral: {
             id: 'marcapasso_ancestral',
@@ -460,16 +501,6 @@ animationPool: {
             effect: 'Multiplicador de Streak diário aumentado em +5%.',
             origin: 'Mantém o ritmo cadenciado dos estudos diários ininterrupto.'
         },
-        alianca_academico: {
-            id: 'alianca_academico',
-            name: 'Aliança do Acadêmico',
-            slot: 'ring1',
-            rarity: 'common',
-            icon: 'https://api.iconify.design/game-icons/ring.svg?color=%2395a5a6',
-            stats: { poder: 3, intelecto: 3 },
-            effect: 'Equipamento básico de ingresso na jornada médica.',
-            origin: 'Forjado nos primeiros semestres de dedicação.'
-        },
         camara_neubauer: {
             id: 'camara_neubauer',
             name: 'Anel da Câmara de Neubauer',
@@ -479,6 +510,16 @@ animationPool: {
             stats: { fortuna: 8, precisao: 4 },
             effect: 'Aumenta a probabilidade de obter equipamentos Raros e Épicos.',
             origin: 'Permite quantificar as recompensas ocultas do destino.'
+        },
+        anel_sinapse: {
+            id: 'anel_sinapse',
+            name: 'Anel da Sinapse',
+            slot: 'ring1',
+            rarity: 'epic',
+            icon: 'https://api.iconify.design/game-icons/ring.svg?color=%239b59b6',
+            stats: { intelecto: 10, foco: 6 },
+            effect: '+8% de XP em todas as sessões de estudo.',
+            origin: 'Acelera a neurotransmissão durante o aprendizado.'
         },
         chave_memoria: {
             id: 'chave_memoria',

@@ -806,3 +806,133 @@ input[type="text"]:focus, select:focus { border-color: var(--gold); }
 .banner-damage { font-size: 1.05rem; font-weight: 900; color: #ff4757; text-shadow: 0 0 10px #ff4757; }
 
 @keyframes bannerPop { 0% { opacity: 0; transform: translate(-50%, 15px) scale(0.8); } 100% { opacity: 1; transform: translate(-50%, 0) scale(1); } }
+/* AJUSTES VISUAIS DOS SLOTS DE EQUIPAMENTO */
+.slot-frame {
+    background: #090c14;
+    border: 2px solid #1c2438;
+    border-radius: 6px;
+    padding: 8px 12px;
+    min-height: 62px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.slot-frame:hover {
+    border-color: var(--gold);
+    background: #0f1422;
+}
+
+.slot-item-img {
+    width: 42px;
+    height: 42px;
+    object-fit: contain;
+}
+
+.slot-empty-icon-wrap {
+    width: 42px;
+    height: 42px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 4px;
+}
+
+.slot-placeholder-icon {
+    font-size: 1.25rem;
+    color: #4a5568;
+}
+
+.slot-meta-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    text-align: left;
+    overflow: hidden;
+}
+
+.slot-cat-name {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.slot-equipped-title {
+    font-size: 0.88rem;
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.slot-empty-placeholder {
+    font-size: 0.8rem;
+    color: #555;
+    font-style: italic;
+}
+
+/* AJUSTES VISUAIS DOS CARDS DO INVENTÁRIO */
+.inventory-bag-grid-full {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 12px;
+    max-height: 420px;
+    overflow-y: auto;
+    padding: 6px 2px;
+}
+
+.bag-card-item {
+    background: #090c14;
+    border: 1px solid #1c2438;
+    border-radius: 6px;
+    padding: 14px 8px 10px 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    cursor: pointer;
+    position: relative;
+    transition: transform 0.15s ease, border-color 0.2s ease;
+}
+
+.bag-card-item:hover {
+    transform: translateY(-3px);
+}
+
+.bag-card-item img {
+    width: 48px;
+    height: 48px;
+    object-fit: contain;
+    margin-bottom: 8px;
+}
+
+.bag-card-name {
+    font-size: 0.82rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+}
+
+.bag-card-slot {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
+.bag-badge-equipped {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    background: var(--gold);
+    color: #000;
+    font-size: 8px;
+    font-weight: 900;
+    padding: 1px 5px;
+    border-radius: 2px;
+    letter-spacing: 0.5px;
+}

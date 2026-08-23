@@ -67,9 +67,14 @@ const Storage = {
             }
             if (!data.player.mastery) data.player.mastery = 10;
             if (!data.stats) data.stats = { totalDamage: 0, maxSessionDamage: 0 };
-            this.save(data);
         }
 
+        // Deduplica o inventário para eliminar itens repetidos do save
+        if (Array.isArray(data.inventory)) {
+            data.inventory = [...new Set(data.inventory)];
+        }
+
+        this.save(data);
         return data;
     },
 
@@ -103,20 +108,29 @@ const Storage = {
     },
 
     save(state) {
+        if (state && Array.isArray(state.inventory)) {
+            state.inventory = [...new Set(state.inventory)];
+        }
         localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     },
 
-    equipItem(itemId, slot) {
+    equipItem(itemId, explicitSlot = null) {
         const state = this.get();
         const item = DATABASE.items[itemId];
         if (!item) return;
 
-        let targetSlot = slot || item.slot;
+        let targetSlot = explicitSlot || item.slot;
 
         if (targetSlot === 'ring' || targetSlot === 'ring1' || targetSlot === 'ring2') {
-            if (!state.equipment.ring1) targetSlot = 'ring1';
-            else if (!state.equipment.ring2) targetSlot = 'ring2';
-            else targetSlot = slot || 'ring1';
+            if (explicitSlot && (explicitSlot === 'ring1' || explicitSlot === 'ring2')) {
+                targetSlot = explicitSlot;
+            } else if (!state.equipment.ring1) {
+                targetSlot = 'ring1';
+            } else if (!state.equipment.ring2) {
+                targetSlot = 'ring2';
+            } else {
+                targetSlot = 'ring1';
+            }
         }
 
         state.equipment[targetSlot] = itemId;
@@ -130,7 +144,7 @@ const Storage = {
 
     unequipItem(slot) {
         const state = this.get();
-        if (state.equipment[slot]) {
+        if (state.equipment && state.equipment[slot] !== undefined) {
             state.equipment[slot] = null;
             this.save(state);
         }
