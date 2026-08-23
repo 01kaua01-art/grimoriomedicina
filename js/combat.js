@@ -29,8 +29,9 @@ const CombatEngine = {
         return total;
     },
 
+    // Curva quadrática: Lv 1 -> 250 XP | Lv 5 -> 1.050 XP | Lv 10 -> 2.600 XP
     getXpRequiredForLevel(level) {
-        return level * 50 + 50;
+        return Math.round(150 + (Math.pow(level, 1.6) * 100));
     },
 
     generateProceduralBoss(defeatedCount = 0, basePresetHp = 12000) {

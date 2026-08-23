@@ -237,7 +237,7 @@ animationPool: {
             name: 'Grimório de Robbins',
             slot: 'grimoire',
             rarity: 'epic',
-            icon: 'https://api.iconify.design/game-icons/tome.svg?color=%239b59b6',
+            icon: 'https://api.iconify.design/game-icons/secret-book.svg?color=%239b59b6', // Corrigido de tome para secret-book
             stats: { intelecto: 10, foco: 8 },
             effect: 'Sessões extensas de 90 min (Raid) concedem +25% de XP bônus.',
             origin: 'O peso monumental dos processos patológicos estruturados.'
@@ -331,7 +331,7 @@ animationPool: {
             name: 'Cérebro de Mnemosyne',
             slot: 'relic',
             rarity: 'legendary',
-            icon: 'https://api.iconify.design/game-icons/mind-slice.svg?color=%23f1c40f',
+            icon: 'https://api.iconify.design/game-icons/brain.svg?color=%23f1c40f', // Corrigido de mind-slice para brain
             stats: { retencao: 20, intelecto: 10 },
             effect: 'Uma vez por dia, sua primeira sessão de revisão recebe +50% de eficiência.',
             origin: 'A relíquia da deusa da memória que impede o declínio da curva de esquecimento.'
