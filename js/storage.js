@@ -1,9 +1,10 @@
-const STORAGE_KEY = 'medrpg_save_v1';
+const STORAGE_KEY = 'medrpg_save_v2';
+const SAVE_VERSION = 2;
 
 const Storage = {
-    // ESTADO PADRÃO INICIAL (NÍVEL 1 REAL)
     getDefault() {
         return {
+            _version: SAVE_VERSION,
             player: {
                 name: "Acadêmico",
                 level: 1,
@@ -54,19 +55,47 @@ const Storage = {
         };
     },
 
+    migrate(data) {
+        if (!data) return this.getDefault();
+        const version = data._version || 1;
+
+        if (version < 2) {
+            data._version = 2;
+            if (!data.player.mastery) data.player.mastery = 10;
+            if (!data.stats) data.stats = { totalDamage: 0, maxSessionDamage: 0 };
+            this.save(data);
+        }
+
+        return data;
+    },
+
     get() {
         const raw = localStorage.getItem(STORAGE_KEY);
         if (!raw) {
+            // Tenta recuperar save v1 legado caso exista
+            const legacyRaw = localStorage.getItem('medrpg_save_v1');
+            if (legacyRaw) {
+                try {
+                    const legacyData = JSON.parse(legacyRaw);
+                    const migrated = this.migrate(legacyData);
+                    this.save(migrated);
+                    localStorage.removeItem('medrpg_save_v1');
+                    return structuredClone(migrated);
+                } catch (e) {}
+            }
             const fresh = this.getDefault();
             this.save(fresh);
-            return fresh;
+            return structuredClone(fresh);
         }
+
         try {
-            return JSON.parse(raw);
+            const data = JSON.parse(raw);
+            const validated = this.migrate(data);
+            return structuredClone(validated);
         } catch (e) {
             const fresh = this.getDefault();
             this.save(fresh);
-            return fresh;
+            return structuredClone(fresh);
         }
     },
 
@@ -81,7 +110,6 @@ const Storage = {
 
         let targetSlot = slot || item.slot;
 
-        // Se for um anel genérico, equipa no primeiro slot vago ou no ring1
         if (targetSlot === 'ring' || targetSlot === 'ring1' || targetSlot === 'ring2') {
             if (!state.equipment.ring1) targetSlot = 'ring1';
             else if (!state.equipment.ring2) targetSlot = 'ring2';
@@ -90,7 +118,6 @@ const Storage = {
 
         state.equipment[targetSlot] = itemId;
 
-        // Garante que o item esteja na mochila
         if (!state.inventory.includes(itemId)) {
             state.inventory.push(itemId);
         }
@@ -106,15 +133,46 @@ const Storage = {
         }
     },
 
-    addSession(session) {
+    exportSave() {
         const state = this.get();
-        state.sessions.unshift(session);
-        this.save(state);
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state, null, 2));
+        const downloadAnchor = document.createElement('a');
+        
+        const dateTag = new Date().toISOString().split('T')[0];
+        downloadAnchor.setAttribute("href", dataStr);
+        downloadAnchor.setAttribute("download", `medrpg_save_lvl${state.player.level}_${dateTag}.json`);
+        document.body.appendChild(downloadAnchor);
+        downloadAnchor.click();
+        downloadAnchor.remove();
+    },
+
+    importSave(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const parsed = JSON.parse(e.target.result);
+                if (!parsed.player || !parsed.equipment || !parsed.boss) {
+                    throw new Error('Arquivo incompatível');
+                }
+
+                if (confirm(`Restaurar save do acadêmico nível ${parsed.player.level}? O progresso local atual será substituído.`)) {
+                    this.save(this.migrate(parsed));
+                    location.reload();
+                }
+            } catch (err) {
+                alert('Erro ao importar save: Formato de JSON inválido.');
+            }
+        };
+        reader.readAsText(file);
     },
 
     resetAllData() {
         if (confirm('Tem certeza que deseja resetar todo o seu progresso? Essa ação é irreversível.')) {
             localStorage.removeItem(STORAGE_KEY);
+            localStorage.removeItem('medrpg_save_v1');
             location.reload();
         }
     }

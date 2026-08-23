@@ -1,9 +1,13 @@
 const Tabs = {
     open(tabId) {
-        document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-        document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-        event.currentTarget.classList.add('active');
-        document.getElementById(`tab-${tabId}`).classList.add('active');
+        document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+        document.querySelectorAll('.tab-panel').forEach(panel => panel.classList.remove('active'));
+
+        const targetBtn = Array.from(document.querySelectorAll('.nav-btn')).find(b => b.getAttribute('onclick').includes(tabId));
+        if (targetBtn) targetBtn.classList.add('active');
+
+        const targetPanel = document.getElementById(`tab-${tabId}`);
+        if (targetPanel) targetPanel.classList.add('active');
 
         if (tabId === 'character') CharacterHub.render();
         if (tabId === 'calendar') CalendarView.render();
@@ -13,31 +17,44 @@ const Tabs = {
 };
 
 const CharacterHub = {
-    currentCategory: 'all',
+    currentSubTab: 'overview',
+    currentBagFilter: 'all',
+    inspectingItemId: null,
 
-    openSubTab(subTabId) {
+    openSubTab(tab) {
+        this.currentSubTab = tab;
         document.querySelectorAll('.char-sub-btn').forEach(b => b.classList.remove('active'));
         document.querySelectorAll('.char-sub-panel').forEach(p => p.classList.remove('active'));
-        event.currentTarget.classList.add('active');
-        document.getElementById(`char-sub-${subTabId}`).classList.add('active');
 
-        if (subTabId === 'overview') this.renderOverview();
-        if (subTabId === 'equipment') this.renderEquipment();
-        if (subTabId === 'inventory') this.renderInventory();
-        if (subTabId === 'collection') this.renderCollection();
+        const btn = Array.from(document.querySelectorAll('.char-sub-btn')).find(b => b.getAttribute('onclick').includes(tab));
+        if (btn) btn.classList.add('active');
+
+        const panel = document.getElementById(`char-sub-${tab}`);
+        if (panel) panel.classList.add('active');
+
+        this.render();
     },
 
     render() {
-        this.renderOverview();
-        this.renderEquipment();
-        this.renderInventory();
-        this.renderCollection();
+        const state = Storage.get();
+        if (this.currentSubTab === 'overview') this.renderOverview(state);
+        if (this.currentSubTab === 'equipment') this.renderEquipment(state);
+        if (this.currentSubTab === 'inventory') this.renderInventory(state);
+        if (this.currentSubTab === 'collection') this.renderCollection(state);
     },
 
-    renderOverview() {
+    allocatePoint(attrKey) {
         const state = Storage.get();
-        const attrs = CombatEngine.getTotalAttributes();
+        if ((state.player.attributePoints || 0) > 0) {
+            state.player.attributePoints -= 1;
+            state.player.baseAttributes[attrKey] = (state.player.baseAttributes[attrKey] || 0) + 1;
+            Storage.save(state);
+            this.renderOverview(state);
+            UI.render();
+        }
+    },
 
+    renderOverview(state) {
         let rank = DATABASE.ranks[0];
         DATABASE.ranks.forEach(r => {
             if (state.player.level >= r.level) rank = r;
@@ -47,60 +64,67 @@ const CharacterHub = {
         document.getElementById('char-overview-elo').innerText = rank.elo;
         document.getElementById('char-overview-lvl').innerText = state.player.level;
 
-        const currentLvl = state.player.level || 1;
-        const currentXp = state.player.currentXp || 0;
-        const neededXp = CombatEngine.getXpRequiredForLevel(currentLvl);
-        const xpLeft = Math.max(0, neededXp - currentXp);
+        const reqXp = CombatEngine.getXpRequiredForLevel(state.player.level);
+        const curXp = state.player.currentXp || 0;
+        document.getElementById('char-overview-xp-detail').innerText = `${curXp} / ${reqXp} XP`;
+        document.getElementById('char-overview-xp-left').innerText = `Faltam ${Math.max(0, reqXp - curXp)} XP`;
+        document.getElementById('char-overview-xp-fill').style.width = `${Math.min(100, (curXp / reqXp) * 100)}%`;
 
-        document.getElementById('char-overview-xp-detail').innerText = `${currentXp} / ${neededXp} XP`;
-        document.getElementById('char-overview-xp-left').innerText = `Faltam ${xpLeft} XP para Level Up`;
-        const xpPercent = Math.min(100, Math.round((currentXp / neededXp) * 100));
-        document.getElementById('char-overview-xp-fill').style.width = `${xpPercent}%`;
-
-        const totalMins = state.sessions.reduce((acc, s) => acc + s.durationMinutes, 0);
         document.getElementById('char-hl-bosses').innerText = state.boss.bossesDefeated || 0;
-        document.getElementById('char-hl-hours').innerText = `${Math.floor(totalMins / 60)}h ${totalMins % 60}m`;
+        
+        const totalMinutes = state.sessions.reduce((acc, cur) => acc + (cur.durationMinutes || 0), 0);
+        document.getElementById('char-hl-hours').innerText = `${Math.floor(totalMinutes / 60)}h`;
         document.getElementById('char-hl-streak').innerText = `${state.player.consecutiveDays || 1}d`;
-        document.getElementById('char-hl-loot').innerText = state.inventory.length + Object.values(state.equipment).filter(Boolean).length;
+        document.getElementById('char-hl-loot').innerText = state.inventory.length;
 
-        const barsContainer = document.getElementById('attributes-bars-list');
-        barsContainer.innerHTML = '';
+        const attrsList = document.getElementById('attributes-bars-list');
+        const availablePoints = state.player.attributePoints || 0;
+        
+        attrsList.innerHTML = availablePoints > 0 
+            ? `<div style="background: rgba(212, 175, 55, 0.15); border: 1px solid var(--gold); padding: 8px; border-radius: 6px; margin-bottom: 12px; text-align: center; color: var(--gold); font-weight: bold;">
+                ✦ Você possui ${availablePoints} ponto(s) de atributo para distribuir!
+               </div>`
+            : '';
 
-        Object.entries(DATABASE.attributesMeta).forEach(([attrKey, meta]) => {
-            const val = attrs[attrKey] || 10;
-            const barWidth = Math.min(100, Math.round((val / 40) * 100));
+        const totalAttrs = CombatEngine.getTotalAttributes();
 
-            const row = document.createElement('div');
-            row.className = 'attr-row-bar';
-            row.innerHTML = `
-                <div class="attr-bar-header">
-                    <span>${meta.icon} ${meta.name.toUpperCase()}</span>
-                    <strong style="color:var(--gold);">${val}</strong>
+        Object.entries(DATABASE.attributesMeta).forEach(([key, meta]) => {
+            const val = totalAttrs[key] || 1;
+            const pct = Math.min(100, (val / 100) * 100);
+            
+            const plusBtn = availablePoints > 0 
+                ? `<button onclick="CharacterHub.allocatePoint('${key}')" style="background: var(--gold); border: none; color: #000; font-weight: bold; width: 22px; height: 22px; border-radius: 4px; cursor: pointer; margin-left: 8px;">+</button>` 
+                : '';
+
+            attrsList.innerHTML += `
+                <div class="attr-row">
+                    <div class="attr-meta">
+                        <span>${meta.icon} ${meta.name}</span>
+                        <div style="display: flex; align-items: center;">
+                            <strong style="color:var(--gold);">${val}</strong>
+                            ${plusBtn}
+                        </div>
+                    </div>
+                    <div class="attr-bar-bg">
+                        <div class="attr-bar-fill" style="width: ${pct}%;"></div>
+                    </div>
                 </div>
-                <div class="attr-bar-track">
-                    <div class="attr-bar-fill" style="width:${barWidth}%;"></div>
-                </div>
-                <div class="attr-desc-tooltip">${meta.desc}</div>
             `;
-            barsContainer.appendChild(row);
         });
 
-        document.getElementById('j-dmg').innerText = `${state.stats.totalDamage || 0} HP`;
-        document.getElementById('j-max-dmg').innerText = `${state.stats.maxSessionDamage || 0} HP`;
+        document.getElementById('j-dmg').innerText = `${(state.stats.totalDamage || 0).toLocaleString()} HP`;
+        document.getElementById('j-max-dmg').innerText = `${(state.stats.maxSessionDamage || 0).toLocaleString()} HP`;
         document.getElementById('j-sessions').innerText = state.sessions.length;
-        document.getElementById('j-xp').innerText = state.player.totalXpEarned || 0;
-
-        const allItems = [...state.inventory, ...Object.values(state.equipment).filter(Boolean)];
-        const legCount = allItems.filter(id => DATABASE.items[id] && DATABASE.items[id].rarity === 'legendary').length;
+        document.getElementById('j-xp').innerText = (state.player.totalXpEarned || 0).toLocaleString();
+        
+        const legCount = state.inventory.filter(id => DATABASE.items[id] && DATABASE.items[id].rarity === 'legendary').length;
         document.getElementById('j-legendary-count').innerText = legCount;
 
-        const avg = state.sessions.length ? Math.round(totalMins / state.sessions.length) : 0;
+        const avg = state.sessions.length > 0 ? Math.round(totalMinutes / state.sessions.length) : 0;
         document.getElementById('j-avg-time').innerText = `${avg} min`;
     },
 
-    renderEquipment() {
-        const state = Storage.get();
-
+    renderEquipment(state) {
         let rank = DATABASE.ranks[0];
         DATABASE.ranks.forEach(r => {
             if (state.player.level >= r.level) rank = r;
@@ -109,33 +133,96 @@ const CharacterHub = {
         document.getElementById('avatar-portrait-img').src = rank.icon;
         document.getElementById('avatar-rank-pill').innerText = rank.title;
 
-        Object.entries(DATABASE.slots).forEach(([slotKey, slotMeta]) => {
-            const el = document.getElementById(`slot-${slotKey}`);
-            if (!el) return;
+        Object.keys(DATABASE.slots).forEach(slotKey => {
+            const frame = document.getElementById(`slot-${slotKey}`);
+            if (!frame) return;
 
             const itemId = state.equipment[slotKey];
-            const item = itemId ? DATABASE.items[itemId] : null;
-
-            if (item) {
-                const rarity = DATABASE.rarities[item.rarity];
-                el.className = `slot-frame ${item.rarity}`;
-                el.innerHTML = `
-                    <img src="${item.icon}" alt="${item.name}">
-                    <div style="flex:1;">
-                        <span style="font-size:0.68rem; color:var(--text-muted); text-transform:uppercase;">${slotMeta.name}</span>
-                        <div style="color:${rarity.color}; font-weight:bold; font-size:0.82rem;">${item.name}</div>
-                    </div>
-                `;
+            if (itemId && DATABASE.items[itemId]) {
+                const item = DATABASE.items[itemId];
+                frame.innerHTML = `<img src="${item.icon}" alt="${item.name}" style="border:1px solid ${DATABASE.rarities[item.rarity].color}; border-radius:4px; padding:2px;">`;
             } else {
-                el.className = 'slot-frame empty';
-                el.innerHTML = `
-                    <i class="fa-solid ${slotMeta.icon}" style="font-size:1.4rem; color:#444; width:42px; text-align:center;"></i>
-                    <div>
-                        <span style="font-size:0.68rem; color:var(--text-muted); text-transform:uppercase;">${slotMeta.name}</span>
-                        <div style="color:#7c879d; font-size:0.82rem;">Vazio</div>
-                    </div>
-                `;
+                frame.innerHTML = `<i class="fa-solid ${DATABASE.slots[slotKey].icon} slot-placeholder-icon"></i>`;
             }
+        });
+    },
+
+    filterBag(cat, btn) {
+        this.currentBagFilter = cat;
+        document.querySelectorAll('.cat-filter-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        this.renderInventory(Storage.get());
+    },
+
+    renderInventory(state) {
+        const bag = document.getElementById('inventory-bag-full');
+        bag.innerHTML = '';
+
+        let items = state.inventory.map(id => DATABASE.items[id]).filter(Boolean);
+        if (this.currentBagFilter !== 'all') {
+            items = items.filter(i => {
+                if (this.currentBagFilter === 'ring') return i.slot === 'ring1' || i.slot === 'ring2';
+                return i.slot === this.currentBagFilter;
+            });
+        }
+
+        if (items.length === 0) {
+            bag.innerHTML = '<div style="grid-column:1/-1; color:var(--text-muted); font-size:0.85rem; padding:20px; text-align:center;">Nenhum item nesta categoria.</div>';
+            return;
+        }
+
+        items.forEach(item => {
+            const isEquipped = Object.values(state.equipment).includes(item.id);
+            const slot = document.createElement('div');
+            slot.className = 'slot-frame';
+            slot.style.borderColor = DATABASE.rarities[item.rarity].color;
+            slot.innerHTML = `
+                <img src="${item.icon}" alt="${item.name}">
+                ${isEquipped ? '<span style="position:absolute; bottom:2px; right:2px; background:var(--gold); color:#000; font-size:9px; font-weight:bold; padding:1px 3px; border-radius:2px;">E</span>' : ''}
+            `;
+            slot.onclick = () => this.inspectItem(item.id);
+            bag.appendChild(slot);
+        });
+    },
+
+    renderCollection(state) {
+        const totalBosses = Object.values(DATABASE.bossPool).flat().length;
+        const catalogedBosses = Object.keys(state.bestiary || {}).length;
+        document.getElementById('col-boss-ratio').innerText = `${catalogedBosses} / ${totalBosses}`;
+
+        const totalItems = Object.keys(DATABASE.items).length;
+        const foundItems = new Set(state.inventory).size;
+        document.getElementById('col-item-ratio').innerText = `${foundItems} / ${totalItems}`;
+
+        document.getElementById('col-trophy-ratio').innerText = `${state.unlockedTrophies.length} / ${DATABASE.trophies.length}`;
+
+        const bestiaryGrid = document.getElementById('bestiary-grid-collection');
+        bestiaryGrid.innerHTML = '';
+        Object.values(state.bestiary || {}).forEach(b => {
+            bestiaryGrid.innerHTML += `
+                <div class="bestiary-card-item">
+                    <img src="${b.icon}" width="40" height="40" alt="${b.name}">
+                    <div>
+                        <strong style="color:var(--gold); font-size:0.85rem;">${b.name}</strong>
+                        <div style="font-size:0.75rem; color:var(--text-muted);">${b.rarity.toUpperCase()} • Derrotado: ${b.defeatedCount}x</div>
+                    </div>
+                </div>
+            `;
+        });
+
+        const trophiesGrid = document.getElementById('trophies-grid-collection');
+        trophiesGrid.innerHTML = '';
+        DATABASE.trophies.forEach(t => {
+            const unlocked = state.unlockedTrophies.includes(t.id);
+            trophiesGrid.innerHTML += `
+                <div class="trophy-card-item" style="opacity: ${unlocked ? '1' : '0.35'}; border-color: ${unlocked ? 'var(--gold)' : 'var(--border-color)'};">
+                    <i class="fa-solid ${t.icon}" style="font-size:1.8rem; color:${unlocked ? 'var(--gold)' : 'var(--text-muted)'};"></i>
+                    <div>
+                        <strong style="font-size:0.85rem; color:#fff;">${t.name}</strong>
+                        <div style="font-size:0.72rem; color:var(--text-muted);">${t.desc}</div>
+                    </div>
+                </div>
+            `;
         });
     },
 
@@ -143,235 +230,246 @@ const CharacterHub = {
         const state = Storage.get();
         const itemId = state.equipment[slotKey];
         if (itemId) {
-            this.inspectItem(itemId, true, slotKey);
-        } else {
-            alert(`O slot ${DATABASE.slots[slotKey].name} está vazio. Abra a subaba Inventário para equipar itens.`);
+            this.inspectItem(itemId, slotKey);
         }
     },
 
-    filterBag(category, btn) {
-        this.currentCategory = category;
-        document.querySelectorAll('.cat-filter-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        this.renderInventory();
-    },
-
-    renderInventory() {
-        const state = Storage.get();
-        const bagContainer = document.getElementById('inventory-bag-full');
-        bagContainer.innerHTML = '';
-
-        let itemsToShow = state.inventory.map(id => DATABASE.items[id]).filter(Boolean);
-
-        if (this.currentCategory !== 'all') {
-            if (this.currentCategory === 'ring') {
-                itemsToShow = itemsToShow.filter(i => i.slot === 'ring1' || i.slot === 'ring2');
-            } else {
-                itemsToShow = itemsToShow.filter(i => i.slot === this.currentCategory);
-            }
-        }
-
-        if (itemsToShow.length === 0) {
-            bagContainer.innerHTML = '<p style="color:#7c879d; font-size:0.85rem; grid-column:1/-1;">Nenhum item nesta categoria.</p>';
-            return;
-        }
-
-        itemsToShow.forEach(item => {
-            const rarity = DATABASE.rarities[item.rarity];
-            const card = document.createElement('div');
-            card.className = `bag-card-item ${item.rarity}`;
-            card.innerHTML = `
-                <img src="${item.icon}" alt="${item.name}">
-                <strong style="color:${rarity.color}; font-size:0.82rem;">${item.name}</strong>
-                <span style="font-size:0.7rem; color:var(--text-muted); margin-top:2px;">${DATABASE.slots[item.slot].name}</span>
-            `;
-            card.onclick = () => this.inspectItem(item.id, false);
-            bagContainer.appendChild(card);
-        });
-    },
-
-    inspectItem(itemId, isEquipped, slotKey = null) {
+    inspectItem(itemId, equippedSlot = null) {
+        this.inspectingItemId = itemId;
         const item = DATABASE.items[itemId];
+        const state = Storage.get();
         if (!item) return;
 
-        const state = Storage.get();
-        const rarity = DATABASE.rarities[item.rarity];
-        const modal = document.getElementById('item-inspect-modal');
-
         document.getElementById('inspect-item-name').innerText = item.name;
-        document.getElementById('inspect-item-name').style.color = rarity.color;
-        document.getElementById('inspect-item-type').innerText = `[${rarity.name.toUpperCase()}] • ${DATABASE.slots[item.slot].name}`;
-        document.getElementById('inspect-item-type').style.color = rarity.color;
+        document.getElementById('inspect-item-name').style.color = DATABASE.rarities[item.rarity].color;
         document.getElementById('inspect-item-img').src = item.icon;
+        document.getElementById('inspect-item-type').innerText = `[${DATABASE.rarities[item.rarity].name.toUpperCase()}] • ${DATABASE.slots[item.slot] ? DATABASE.slots[item.slot].name : 'Item'}`;
         document.getElementById('inspect-item-desc').innerText = item.effect;
-        document.getElementById('inspect-item-origin').innerText = item.origin || 'Origem desconhecida.';
+        document.getElementById('inspect-item-origin').innerText = item.origin || '';
 
-        const targetSlot = slotKey || (item.slot === 'ring2' ? 'ring1' : item.slot);
+        const targetSlot = equippedSlot || item.slot;
         const currentEquippedId = state.equipment[targetSlot];
-        const currentEquippedItem = currentEquippedId ? DATABASE.items[currentEquippedId] : null;
+        const currentItem = currentEquippedId ? DATABASE.items[currentEquippedId] : null;
 
-        const compCurName = document.getElementById('comp-current-name');
-        const compCurStats = document.getElementById('comp-current-stats');
-        const compNewName = document.getElementById('comp-new-name');
-        const compNewStats = document.getElementById('comp-new-stats');
-        const compDiff = document.getElementById('comp-diff-summary');
+        document.getElementById('comp-current-name').innerText = currentItem ? currentItem.name : 'Nenhum';
+        
+        const curStatsBox = document.getElementById('comp-current-stats');
+        curStatsBox.innerHTML = '';
+        if (currentItem) {
+            Object.entries(currentItem.stats).forEach(([k, v]) => {
+                curStatsBox.innerHTML += `<div>+${v} ${k}</div>`;
+            });
+        }
 
-        compCurStats.innerHTML = '';
-        compNewStats.innerHTML = '';
-        compDiff.innerHTML = '';
-
-        compNewName.innerText = item.name;
-        compNewName.style.color = rarity.color;
+        const newStatsBox = document.getElementById('comp-new-stats');
+        newStatsBox.innerHTML = '';
         Object.entries(item.stats).forEach(([k, v]) => {
-            compNewStats.innerHTML += `<div>+${v} ${k.toUpperCase()}</div>`;
+            newStatsBox.innerHTML += `<div>+${v} ${k}</div>`;
         });
 
-        if (currentEquippedItem) {
-            const curRarity = DATABASE.rarities[currentEquippedItem.rarity];
-            compCurName.innerText = currentEquippedItem.name;
-            compCurName.style.color = curRarity.color;
-
-            Object.entries(currentEquippedItem.stats).forEach(([k, v]) => {
-                compCurStats.innerHTML += `<div>+${v} ${k.toUpperCase()}</div>`;
-            });
-
-            let diffHtml = '<strong>Diferença: </strong>';
-            const allKeys = new Set([...Object.keys(item.stats), ...Object.keys(currentEquippedItem.stats)]);
-            allKeys.forEach(k => {
-                const diff = (item.stats[k] || 0) - (currentEquippedItem.stats[k] || 0);
-                if (diff > 0) diffHtml += `<span style="color:#2ecc71; margin-right:8px;">+${diff} ${k.toUpperCase()}</span>`;
-                else if (diff < 0) diffHtml += `<span style="color:#ff4757; margin-right:8px;">${diff} ${k.toUpperCase()}</span>`;
-            });
-            compDiff.innerHTML = diffHtml;
-        } else {
-            compCurName.innerText = 'Vazio';
-            compCurName.style.color = '#7c879d';
-            compCurStats.innerHTML = '<div>Sem atributos</div>';
-            compDiff.innerHTML = '<strong>Ganho Total Líquido</strong>';
-        }
-
         const actionsBox = document.getElementById('inspect-actions-box');
-        actionsBox.innerHTML = '';
+        const isEquipped = Object.values(state.equipment).includes(item.id);
 
         if (isEquipped) {
-            const btnUnequip = document.createElement('button');
-            btnUnequip.className = 'btn-secondary';
-            btnUnequip.innerText = 'Desequipar';
-            btnUnequip.onclick = () => {
-                Storage.unequipItem(slotKey);
-                modal.classList.remove('active');
-                CharacterHub.render();
-                UI.render();
-            };
-            actionsBox.appendChild(btnUnequip);
+            actionsBox.innerHTML = `<button class="btn-danger" style="width:100%;" onclick="CharacterHub.unequip('${targetSlot}')">Desequipar</button>`;
         } else {
-            const btnEquip = document.createElement('button');
-            btnEquip.className = 'btn-primary';
-            btnEquip.innerText = 'Equipar Item';
-            btnEquip.onclick = () => {
-                Storage.equipItem(item.id);
-                modal.classList.remove('active');
-                CharacterHub.render();
-                UI.render();
-            };
-            actionsBox.appendChild(btnEquip);
-
-            const btnDiscard = document.createElement('button');
-            btnDiscard.className = 'btn-danger';
-            btnDiscard.innerText = 'Descartar';
-            btnDiscard.onclick = () => {
-                if (confirm('Deseja descartar este item permanentemente?')) {
-                    Storage.discardItem(item.id);
-                    modal.classList.remove('active');
-                    CharacterHub.renderInventory();
-                }
-            };
-            actionsBox.appendChild(btnDiscard);
+            actionsBox.innerHTML = `<button class="btn-primary" style="width:100%;" onclick="CharacterHub.equip('${item.id}', '${targetSlot}')">Equipar</button>`;
         }
 
-        modal.classList.add('active');
+        document.getElementById('item-inspect-modal').classList.add('active');
+    },
+
+    equip(itemId, slot) {
+        Storage.equipItem(itemId, slot);
+        this.closeInspectModal();
+        this.render();
+        UI.render();
+    },
+
+    unequip(slot) {
+        Storage.unequipItem(slot);
+        this.closeInspectModal();
+        this.render();
+        UI.render();
     },
 
     closeInspectModal() {
         document.getElementById('item-inspect-modal').classList.remove('active');
+    }
+};
+
+const CalendarView = {
+    currentYear: new Date().getFullYear(),
+    currentMonth: new Date().getMonth(),
+
+    prevMonth() {
+        this.currentMonth--;
+        if (this.currentMonth < 0) {
+            this.currentMonth = 11;
+            this.currentYear--;
+        }
+        this.render();
     },
 
-    // 4. COLEÇÃO & TROFÉUS (BLINDADO CONTRA CAMPOS NULOS)
-    renderCollection() {
+    nextMonth() {
+        this.currentMonth++;
+        if (this.currentMonth > 11) {
+            this.currentMonth = 0;
+            this.currentYear++;
+        }
+        this.render();
+    },
+
+    render() {
+        const monthNames = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+        document.getElementById('cal-month-title').innerText = `${monthNames[this.currentMonth]} de ${this.currentYear}`;
+
+        const grid = document.getElementById('cal-grid');
+        grid.innerHTML = '';
+
+        const firstDay = new Date(this.currentYear, this.currentMonth, 1).getDay();
+        const totalDays = new Date(this.currentYear, this.currentMonth + 1, 0).getDate();
         const state = Storage.get();
 
-        const totalPool = DATABASE.bossPool.common.length + DATABASE.bossPool.rare.length + DATABASE.bossPool.epic.length + DATABASE.bossPool.legendary.length;
-        const discoveredBossCount = Object.values(state.bestiary || {}).filter(b => b.defeatedCount > 0).length;
-        document.getElementById('col-boss-ratio').innerText = `${discoveredBossCount} / ${totalPool}`;
+        for (let i = 0; i < firstDay; i++) {
+            grid.innerHTML += `<div class="cal-cell" style="opacity:0.2;"></div>`;
+        }
 
-        const allDiscoveredItems = new Set([...state.inventory, ...Object.values(state.equipment).filter(Boolean)]);
-        document.getElementById('col-item-ratio').innerText = `${allDiscoveredItems.size} / ${Object.keys(DATABASE.items).length}`;
+        for (let day = 1; day <= totalDays; day++) {
+            const mStr = (this.currentMonth + 1).toString().padStart(2, '0');
+            const dStr = day.toString().padStart(2, '0');
+            const dateKey = `${this.currentYear}-${mStr}-${dStr}`;
 
-        CombatEngine.checkTrophies(state);
-        document.getElementById('col-trophy-ratio').innerText = `${(state.unlockedTrophies || []).length} / ${DATABASE.trophies.length}`;
+            const daySessions = state.sessions.filter(s => s.date === dateKey);
+            const totalMins = daySessions.reduce((acc, cur) => acc + (cur.durationMinutes || 0), 0);
+            const hasStudy = daySessions.length > 0;
 
-        // Bestiário
-        const bestiaryGrid = document.getElementById('bestiary-grid-collection');
-        bestiaryGrid.innerHTML = '';
-
-        Object.values(state.bestiary || {}).forEach(boss => {
-            const card = document.createElement('div');
-            const rarity = DATABASE.rarities[boss.rarity] || DATABASE.rarities.common;
-            const isDiscovered = (boss.defeatedCount || 0) > 0;
-            card.className = `bestiary-card-item ${isDiscovered ? 'discovered' : 'locked'}`;
-            card.style.borderColor = isDiscovered ? rarity.color : '#232a3d';
-
-            const traitsList = boss.traits || [];
-
-            if (isDiscovered) {
-                card.innerHTML = `
-                    <img src="${boss.icon || 'https://api.iconify.design/game-icons/grim-reaper.svg'}" alt="${boss.name}">
-                    <div style="flex:1;">
-                        <div style="display:flex; justify-content:space-between; align-items:center;">
-                            <h4 style="color:#fff; font-family:'Cinzel'; font-size:0.9rem;">${boss.name}</h4>
-                            <span style="font-size:0.7rem; color:${rarity.color}; font-weight:bold;">[${rarity.name.toUpperCase()}]</span>
-                        </div>
-                        <p style="font-size:0.75rem; color:#7c879d;">Vitórias acumuladas: <strong style="color:var(--gold);">${boss.defeatedCount}x</strong></p>
-                        <div class="bestiary-loot-tags">
-                            ${traitsList.map(tKey => {
-                                const trait = DATABASE.traits[tKey];
-                                return trait ? `<span class="loot-tag" style="color:#ff7675;">${trait.name}</span>` : '';
-                            }).join('')}
-                        </div>
-                    </div>
-                `;
-            } else {
-                card.innerHTML = `
-                    <div class="fog-icon"><i class="fa-solid fa-question"></i></div>
-                    <div style="flex:1;">
-                        <h4 style="color:#7c879d; font-family:'Cinzel';">??? ??? ???</h4>
-                        <p style="font-size:0.75rem; color:#555;">Guardião Desconhecido</p>
-                    </div>
-                `;
-            }
-            bestiaryGrid.appendChild(card);
-        });
-
-        // Troféus
-        const trophiesGrid = document.getElementById('trophies-grid-collection');
-        trophiesGrid.innerHTML = '';
-
-        DATABASE.trophies.forEach(trophy => {
-            const isUnlocked = (state.unlockedTrophies || []).includes(trophy.id);
-            const card = document.createElement('div');
-            card.className = `trophy-card ${isUnlocked ? 'unlocked' : 'locked'}`;
-            card.innerHTML = `
-                <i class="fa-solid ${trophy.icon} trophy-icon"></i>
-                <div>
-                    <h4 style="color:#fff; font-family:'Cinzel'; font-size:0.9rem;">${trophy.name}</h4>
-                    <p style="font-size:0.75rem; color:var(--text-muted);">${trophy.desc}</p>
-                    <span style="font-size:0.7rem; color:${isUnlocked ? '#2ecc71' : '#555'}; font-weight:bold;">
-                        ${isUnlocked ? '🏆 CONQUISTADO' : '🔒 BLOQUEADO'}
-                    </span>
+            grid.innerHTML += `
+                <div class="cal-cell ${hasStudy ? 'active-day' : ''}" onclick="CalendarView.openDayModal('${dateKey}')">
+                    <strong>${day}</strong>
+                    ${hasStudy ? `<div style="color:var(--gold); font-weight:bold; font-size:0.7rem; margin-top:2px;">${totalMins}m</div>` : ''}
                 </div>
             `;
-            trophiesGrid.appendChild(card);
+        }
+    },
+
+    openDayModal(dateKey) {
+        const state = Storage.get();
+        const daySessions = state.sessions.filter(s => s.date === dateKey);
+
+        document.getElementById('modal-day-title').innerText = dateKey;
+        const totalMins = daySessions.reduce((acc, cur) => acc + (cur.durationMinutes || 0), 0);
+        const totalDmg = daySessions.reduce((acc, cur) => acc + (cur.damage || 0), 0);
+        const totalXp = daySessions.reduce((acc, cur) => acc + (cur.xp || 0), 0);
+
+        document.getElementById('modal-day-time').innerText = `${totalMins} min`;
+        document.getElementById('modal-day-dmg').innerText = `${totalDmg.toLocaleString()} HP`;
+        document.getElementById('modal-day-xp').innerText = totalXp.toLocaleString();
+        document.getElementById('modal-day-sessions').innerText = daySessions.length;
+
+        const cont = document.getElementById('modal-sessions-container');
+        cont.innerHTML = '';
+        if (daySessions.length === 0) {
+            cont.innerHTML = '<div style="color:var(--text-muted); text-align:center; padding:10px;">Nenhuma batalha registrada nesta data.</div>';
+        } else {
+            daySessions.forEach(s => {
+                cont.innerHTML += `
+                    <div class="session-mini-item" style="margin-bottom:4px;">
+                        <span>${s.time} • ${s.subject} (${s.durationMinutes}m)</span>
+                        <strong style="color:var(--crimson);">${s.damage} HP</strong>
+                    </div>
+                `;
+            });
+        }
+
+        document.getElementById('day-modal').classList.add('active');
+    }
+};
+
+const HistoryView = {
+    render() {
+        const text = (document.getElementById('history-filter-text').value || '').toLowerCase();
+        const method = document.getElementById('history-filter-method').value;
+        const state = Storage.get();
+
+        const cont = document.getElementById('history-list-container');
+        cont.innerHTML = '';
+
+        let list = state.sessions;
+        if (text) list = list.filter(s => s.subject.toLowerCase().includes(text));
+        if (method !== 'all') list = list.filter(s => s.methodKey === method);
+
+        if (list.length === 0) {
+            cont.innerHTML = '<div style="color:var(--text-muted); text-align:center; padding:20px;">Nenhum registro correspondente.</div>';
+            return;
+        }
+
+        list.forEach(s => {
+            cont.innerHTML += `
+                <div class="session-mini-item" style="padding:10px; margin-bottom:6px;">
+                    <div>
+                        <strong style="color:#fff; font-size:0.9rem;">${s.subject}</strong>
+                        <div style="font-size:0.75rem; color:var(--text-muted);">${s.date} ${s.time} • ${s.methodName} • ${s.durationMinutes} min</div>
+                    </div>
+                    <div style="text-align:right;">
+                        <div style="color:var(--crimson); font-weight:bold;">-${s.damage} HP</div>
+                        <div style="color:var(--mana); font-size:0.75rem;">+${s.xp} XP</div>
+                    </div>
+                </div>
+            `;
         });
+    }
+};
+
+const StatsView = {
+    render() {
+        const state = Storage.get();
+        const totalMinutes = state.sessions.reduce((acc, cur) => acc + (cur.durationMinutes || 0), 0);
+        const hours = Math.floor(totalMinutes / 60);
+        const mins = totalMinutes % 60;
+
+        document.getElementById('stat-total-time').innerText = `${hours}h ${mins}m`;
+        document.getElementById('stat-total-dmg').innerText = `${(state.stats.totalDamage || 0).toLocaleString()} HP`;
+        document.getElementById('stat-total-xp').innerText = (state.player.totalXpEarned || 0).toLocaleString();
+        document.getElementById('stat-total-sessions').innerText = state.sessions.length;
+        document.getElementById('stat-bosses-killed').innerText = state.boss.bossesDefeated || 0;
+
+        const uniqueDays = new Set(state.sessions.map(s => s.date)).size || 1;
+        document.getElementById('stat-daily-avg').innerText = `${Math.round(totalMinutes / uniqueDays)} min`;
+
+        const breakdown = {};
+        state.sessions.forEach(s => {
+            const sub = s.subject.trim() || 'Estudo Geral';
+            breakdown[sub] = (breakdown[sub] || 0) + s.durationMinutes;
+        });
+
+        const cont = document.getElementById('subject-breakdown-container');
+        cont.innerHTML = '<h3 style="color:var(--gold); margin:14px 0 8px 0; font-size:0.9rem;">DISTRIBUIÇÃO DE CONTEÚDO</h3>';
+        Object.entries(breakdown).forEach(([sub, m]) => {
+            const pct = Math.min(100, Math.round((m / totalMinutes) * 100)) || 0;
+            cont.innerHTML += `
+                <div style="margin-bottom:6px;">
+                    <div style="display:flex; justify-content:space-between; font-size:0.8rem;">
+                        <span>${sub}</span>
+                        <strong>${m}m (${pct}%)</strong>
+                    </div>
+                    <div style="background:#0b0c11; height:6px; border-radius:3px; overflow:hidden;">
+                        <div style="background:var(--gold); width:${pct}%; height:100%;"></div>
+                    </div>
+                </div>
+            `;
+        });
+    }
+};
+
+const SettingsView = {
+    changeBossCycle(presetVal) {
+        const state = Storage.get();
+        state.boss.preset = parseInt(presetVal);
+        state.boss.maxHp = state.boss.preset;
+        state.boss.currentHp = state.boss.preset;
+        Storage.save(state);
+        UI.render();
     }
 };
 
@@ -385,172 +483,125 @@ const UI = {
         });
 
         document.getElementById('p-title').innerText = rank.title;
-        document.getElementById('p-elo').innerText = rank.elo;
         document.getElementById('p-lvl').innerText = state.player.level;
+        document.getElementById('p-elo').innerText = rank.elo;
 
-        const currentLvl = state.player.level || 1;
-        const currentXp = state.player.currentXp || 0;
-        const neededXp = CombatEngine.getXpRequiredForLevel(currentLvl);
+        const reqXp = CombatEngine.getXpRequiredForLevel(state.player.level);
+        const curXp = state.player.currentXp || 0;
+        document.getElementById('xp-text').innerText = `${curXp} / ${reqXp} XP`;
+        document.getElementById('xp-bar').style.width = `${Math.min(100, (curXp / reqXp) * 100)}%`;
 
-        const xpPercent = Math.min(100, Math.round((currentXp / neededXp) * 100));
-        document.getElementById('xp-text').innerText = `${currentXp} / ${neededXp} XP`;
-        document.getElementById('xp-bar').style.width = `${xpPercent}%`;
+        const streak = state.player.consecutiveDays || 1;
+        document.getElementById('combo-text').innerText = `x${(1.0 + (streak * 0.05)).toFixed(2)} (${streak} Dias)`;
+        document.getElementById('combo-bar').style.width = `${Math.min(100, streak * 10)}%`;
 
-        // Boss
-        const bossRarity = DATABASE.rarities[state.boss.rarity] || DATABASE.rarities.common;
-        document.getElementById('boss-name').innerText = state.boss.name;
+        document.getElementById('boss-name').innerText = state.boss.name.toUpperCase();
         document.getElementById('boss-img').src = state.boss.icon;
-        document.getElementById('boss-img').style.filter = `drop-shadow(0 0 20px ${bossRarity.color})`;
-        document.getElementById('boss-main-card').style.borderColor = bossRarity.color;
-
-        const rarityBadge = document.getElementById('boss-rarity-label');
-        rarityBadge.innerText = bossRarity.name.toUpperCase();
-        rarityBadge.style.color = bossRarity.color;
-
+        document.getElementById('boss-rarity-label').innerText = DATABASE.rarities[state.boss.rarity].name.toUpperCase();
+        document.getElementById('boss-rarity-label').style.background = DATABASE.rarities[state.boss.rarity].color;
         document.getElementById('boss-level-label').innerText = `Lv. ${state.boss.level}`;
         document.getElementById('boss-hp-cur').innerText = Math.round(state.boss.currentHp);
         document.getElementById('boss-hp-max').innerText = state.boss.maxHp;
         document.getElementById('boss-hp-fill').style.width = `${(state.boss.currentHp / state.boss.maxHp) * 100}%`;
 
-        const traitsContainer = document.getElementById('boss-traits-list');
-        traitsContainer.innerHTML = '';
-        (state.boss.traits || []).forEach(tKey => {
+        const traitsList = document.getElementById('boss-traits-list');
+        traitsList.innerHTML = '';
+        state.boss.traits.forEach(tKey => {
             const trait = DATABASE.traits[tKey];
             if (trait) {
-                traitsContainer.innerHTML += `
-                    <div class="trait-pill" title="${trait.desc}">
-                        <i class="fa-solid ${trait.icon}"></i>
-                        <strong>${trait.name}:</strong> ${trait.desc}
-                    </div>
-                `;
+                traitsList.innerHTML += `<span class="trait-pill"><i class="fa-solid ${trait.icon}"></i> ${trait.name}</span>`;
             }
         });
 
-        // Resumo de Hoje
         const todayStr = new Date().toISOString().split('T')[0];
         const todaySessions = state.sessions.filter(s => s.date === todayStr);
-
-        let todayMinutes = 0, todayDmg = 0, todayXp = 0;
-        todaySessions.forEach(s => {
-            todayMinutes += s.durationMinutes;
-            todayDmg += s.damage;
-            todayXp += s.xp;
-        });
+        const todayMinutes = todaySessions.reduce((acc, cur) => acc + (cur.durationMinutes || 0), 0);
+        const todayDmg = todaySessions.reduce((acc, cur) => acc + (cur.damage || 0), 0);
+        const todayXp = todaySessions.reduce((acc, cur) => acc + (cur.xp || 0), 0);
 
         document.getElementById('dash-today-time').innerText = `${todayMinutes} min`;
-        document.getElementById('dash-today-dmg').innerText = `${todayDmg} HP`;
-        document.getElementById('dash-today-xp').innerText = todayXp;
+        document.getElementById('dash-today-dmg').innerText = `${todayDmg.toLocaleString()} HP`;
+        document.getElementById('dash-today-xp').innerText = todayXp.toLocaleString();
         document.getElementById('dash-today-count').innerText = todaySessions.length;
 
-        // Últimas Sessões
-        const recentContainer = document.getElementById('recent-sessions-container');
-        recentContainer.innerHTML = '';
-        state.sessions.slice(0, 5).forEach(s => {
-            const el = document.createElement('div');
-            el.className = 'recent-item';
-            el.innerHTML = `
-                <div><strong>${s.subject}</strong><br><span style="color:#7c879d;">vs ${s.bossName || 'Boss'} • ${s.time}</span></div>
-                <div style="text-align:right;"><span style="color:#ff4757; font-weight:bold;">-${s.damage} HP</span><br><span style="color:#3498db;">+${s.xp} XP</span></div>
+        const recentCont = document.getElementById('recent-sessions-container');
+        recentCont.innerHTML = '';
+        state.sessions.slice(0, 4).forEach(s => {
+            recentCont.innerHTML += `
+                <div class="session-mini-item">
+                    <span>${s.subject} (${s.durationMinutes}m)</span>
+                    <strong style="color:var(--crimson);">-${s.damage} HP</strong>
+                </div>
             `;
-            recentContainer.appendChild(el);
         });
-
-        CharacterHub.render();
     },
 
-    showVictoryLootModal(bossMeta, item) {
-        const modal = document.getElementById('victory-loot-modal');
-        const rarity = DATABASE.rarities[item.rarity];
+    triggerFloatingDamage(dmg, isCrit) {
+        const anchor = document.getElementById('damage-anchor');
+        if (!anchor) return;
 
-        document.getElementById('loot-boss-name').innerText = bossMeta.name.toUpperCase();
+        const floatEl = document.createElement('div');
+        floatEl.style.cssText = `
+            position: absolute; top: -20px; left: 50%; transform: translateX(-50%);
+            font-size: ${isCrit ? '2rem' : '1.3rem'}; font-weight: 900;
+            color: ${isCrit ? '#f1c40f' : '#ff4757'};
+            text-shadow: 0 0 10px rgba(0,0,0,0.8);
+            animation: floatUp 1.2s ease-out forwards;
+            pointer-events: none; z-index: 10;
+        `;
+        floatEl.innerText = `${isCrit ? '✦ CRITICAL! ' : ''}-${dmg} HP`;
+        anchor.appendChild(floatEl);
+
+        setTimeout(() => floatEl.remove(), 1200);
+    },
+
+    showVictoryLootModal(boss, item) {
+        document.getElementById('loot-boss-name').innerText = boss.name.toUpperCase();
         document.getElementById('loot-item-name').innerText = item.name;
-        document.getElementById('loot-item-name').style.color = rarity.color;
-        document.getElementById('loot-item-rarity').innerText = `[${rarity.name.toUpperCase()}] • ${DATABASE.slots[item.slot].name}`;
-        document.getElementById('loot-item-rarity').style.color = rarity.color;
+        document.getElementById('loot-item-name').style.color = DATABASE.rarities[item.rarity].color;
         document.getElementById('loot-item-img').src = item.icon;
+        document.getElementById('loot-item-rarity').innerText = `[${DATABASE.rarities[item.rarity].name.toUpperCase()}] • ${DATABASE.slots[item.slot] ? DATABASE.slots[item.slot].name : 'Item'}`;
         document.getElementById('loot-item-effect').innerText = item.effect;
-        document.getElementById('loot-item-origin').innerText = item.origin || `Obtido ao derrotar ${bossMeta.name}.`;
+        document.getElementById('loot-item-origin').innerText = item.origin || '';
 
-        const statsWrap = document.getElementById('loot-item-stats');
-        statsWrap.innerHTML = '';
+        const statsBox = document.getElementById('loot-item-stats');
+        statsBox.innerHTML = '';
         Object.entries(item.stats).forEach(([k, v]) => {
-            statsWrap.innerHTML += `<span class="stat-pill">+${v} ${k.toUpperCase()}</span>`;
+            statsBox.innerHTML += `<span style="background:#0b0c11; border:1px solid var(--border-color); padding:2px 6px; border-radius:4px; font-size:0.75rem; color:var(--gold);">+${v} ${k}</span>`;
         });
 
-        const btnEquip = document.getElementById('btn-equip-loot');
-        btnEquip.onclick = () => {
+        document.getElementById('btn-equip-loot').onclick = () => {
             Storage.equipItem(item.id);
-            modal.classList.remove('active');
-            UI.render();
+            this.closeVictoryLootModal();
+            this.render();
         };
 
-        modal.classList.add('active');
+        document.getElementById('victory-loot-modal').classList.add('active');
     },
 
     closeVictoryLootModal() {
         document.getElementById('victory-loot-modal').classList.remove('active');
-        UI.render();
     },
 
-    showLevelUpModal(oldLvl, newLvl) {
+    showLevelUpModal(oldLvl, newLvl, pointsGained = 2) {
         let rank = DATABASE.ranks[0];
         DATABASE.ranks.forEach(r => {
             if (newLvl >= r.level) rank = r;
         });
 
         document.getElementById('levelup-badge-text').innerText = `NÍVEL ${oldLvl} → NÍVEL ${newLvl}`;
-        document.getElementById('levelup-rank-text').innerText = `Título Atual: ${rank.title} (${rank.elo})`;
+        document.getElementById('levelup-rank-text').innerText = `Título Atual: ${rank.title}`;
+        
+        const bonusText = document.querySelector('.levelup-bonus');
+        if (bonusText) {
+            bonusText.innerText = `+${pointsGained} Pontos de Atributo disponíveis na aba Personagem!`;
+        }
+
         document.getElementById('levelup-modal').classList.add('active');
     },
 
     closeLevelUpModal() {
         document.getElementById('levelup-modal').classList.remove('active');
-        this.render();
-    },
-
-    triggerFloatingDamage(amount, isCrit) {
-        const anchor = document.getElementById('damage-anchor');
-        const pop = document.createElement('div');
-        pop.className = `floating-damage ${isCrit ? 'crit' : ''}`;
-        pop.innerText = `${isCrit ? 'CRÍTICO! ' : ''}-${amount} HP`;
-        anchor.appendChild(pop);
-        setTimeout(() => pop.remove(), 800);
-    },
-
-    openDayModal(dateStr) {
-        const state = Storage.get();
-        const daySessions = state.sessions.filter(s => s.date === dateStr);
-        const dateObj = new Date(dateStr + 'T00:00:00');
-        document.getElementById('modal-day-title').innerText = dateObj.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
-
-        let totalTime = 0, totalDmg = 0, totalXp = 0;
-        const container = document.getElementById('modal-sessions-container');
-        container.innerHTML = '';
-
-        if (daySessions.length === 0) {
-            container.innerHTML = '<p style="color:#7c879d; font-size:0.85rem;">Nenhuma batalha registrada nesta data.</p>';
-        } else {
-            daySessions.forEach(s => {
-                totalTime += s.durationMinutes;
-                totalDmg += s.damage;
-                totalXp += s.xp;
-
-                const row = document.createElement('div');
-                row.className = 'session-item';
-                row.innerHTML = `
-                    <div><strong>${s.subject}</strong> (${s.durationMinutes}m)<br><span style="color:#7c879d;">vs ${s.bossName || 'Boss'} • ${s.time} • ${s.methodName}</span></div>
-                    <div style="text-align:right; color:#ff4757; font-weight:bold;">-${s.damage} HP</div>
-                `;
-                container.appendChild(row);
-            });
-        }
-
-        document.getElementById('modal-day-time').innerText = `${totalTime} min`;
-        document.getElementById('modal-day-dmg').innerText = `${totalDmg} HP`;
-        document.getElementById('modal-day-xp').innerText = totalXp;
-        document.getElementById('modal-day-sessions').innerText = daySessions.length;
-
-        document.getElementById('day-modal').classList.add('active');
     },
 
     closeDayModal() {
@@ -558,164 +609,63 @@ const UI = {
     }
 };
 
-const CalendarView = {
-    currentYear: 2026,
-    currentMonth: 7,
+(function initCanvasFX() {
+    const canvas = document.getElementById('fx-canvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    let particles = [];
+    let animationId = null;
 
-    prevMonth() {
-        this.currentMonth--;
-        if (this.currentMonth < 0) { this.currentMonth = 11; this.currentYear--; }
-        this.render();
-    },
-    nextMonth() {
-        this.currentMonth++;
-        if (this.currentMonth > 11) { this.currentMonth = 0; this.currentYear++; }
-        this.render();
-    },
-    render() {
-        const state = Storage.get();
-        const grid = document.getElementById('cal-grid');
-        grid.innerHTML = '';
+    function resize() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resize);
+    resize();
 
-        const monthNames = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
-        document.getElementById('cal-month-title').innerText = `${monthNames[this.currentMonth]} de ${this.currentYear}`;
-
-        ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].forEach(d => {
-            const el = document.createElement('div');
-            el.className = 'cal-day-label';
-            el.innerText = d;
-            grid.appendChild(el);
+    for (let i = 0; i < 40; i++) {
+        particles.push({
+            x: Math.random() * canvas.width,
+            y: Math.random() * canvas.height,
+            size: Math.random() * 2 + 1,
+            speedY: Math.random() * 0.4 + 0.1,
+            opacity: Math.random() * 0.4 + 0.1
         });
+    }
 
-        const firstDay = new Date(this.currentYear, this.currentMonth, 1).getDay();
-        const totalDays = new Date(this.currentYear, this.currentMonth + 1, 0).getDate();
+    function renderParticles() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        particles.forEach(p => {
+            ctx.fillStyle = `rgba(212, 175, 55, ${p.opacity})`;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+            ctx.fill();
 
-        for (let i = 0; i < firstDay; i++) grid.appendChild(document.createElement('div'));
+            p.y -= p.speedY;
+            if (p.y < 0) {
+                p.y = canvas.height;
+                p.x = Math.random() * canvas.width;
+            }
+        });
+        animationId = requestAnimationFrame(renderParticles);
+    }
+    renderParticles();
 
-        const todayStr = new Date().toISOString().split('T')[0];
-
-        for (let d = 1; d <= totalDays; d++) {
-            const dateStr = `${this.currentYear}-${String(this.currentMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-            const daySessions = state.sessions.filter(s => s.date === dateStr);
-
-            let dayMinutes = 0, dayDmg = 0;
-            daySessions.forEach(s => {
-                dayMinutes += s.durationMinutes;
-                dayDmg += s.damage;
-            });
-
-            const cell = document.createElement('div');
-            cell.className = 'cal-cell';
-            if (dateStr === todayStr) cell.classList.add('today');
-
-            if (dayMinutes > 0 && dayMinutes <= 30) cell.classList.add('heat-1');
-            else if (dayMinutes > 30 && dayMinutes <= 75) cell.classList.add('heat-2');
-            else if (dayMinutes > 75 && dayMinutes <= 150) cell.classList.add('heat-3');
-            else if (dayMinutes > 150) cell.classList.add('heat-4');
-
-            cell.innerHTML = `<span>${d}</span>${dayDmg > 0 ? `<span class="cal-dmg">-${dayDmg}</span>` : ''}`;
-            cell.onclick = () => UI.openDayModal(dateStr);
-            grid.appendChild(cell);
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+            cancelAnimationFrame(animationId);
+        } else {
+            renderParticles();
         }
+    });
+})();
+
+window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        document.querySelectorAll('.modal-backdrop.active').forEach(m => m.classList.remove('active'));
     }
-};
+});
 
-const HistoryView = {
-    render() {
-        const state = Storage.get();
-        const query = document.getElementById('history-filter-text').value.toLowerCase();
-        const methodFilter = document.getElementById('history-filter-method').value;
-
-        const container = document.getElementById('history-list-container');
-        container.innerHTML = '';
-
-        const filtered = state.sessions.filter(s => {
-            const matchQuery = s.subject.toLowerCase().includes(query);
-            const matchMethod = (methodFilter === 'all') || (s.methodKey === methodFilter);
-            return matchQuery && matchMethod;
-        });
-
-        if (filtered.length === 0) {
-            container.innerHTML = '<p style="color:#7c879d; font-size:0.9rem;">Nenhuma sessão encontrada.</p>';
-            return;
-        }
-
-        filtered.forEach(s => {
-            const el = document.createElement('div');
-            el.className = 'session-item';
-            el.innerHTML = `
-                <div>
-                    <strong>${s.subject}</strong> <span style="color:#7c879d;">(${s.durationMinutes} min)</span>
-                    <br><span style="font-size:0.75rem; color:#7c879d;">vs ${s.bossName || 'Boss'} • ${s.date} às ${s.time} • ${s.methodName}</span>
-                </div>
-                <div style="text-align:right;">
-                    <span style="color:#ff4757; font-weight:bold;">-${s.damage} HP</span>
-                    <br><span style="color:#3498db; font-size:0.75rem;">+${s.xp} XP</span>
-                </div>
-            `;
-            container.appendChild(el);
-        });
-    }
-};
-
-const StatsView = {
-    render() {
-        const state = Storage.get();
-        let totalMinutes = 0, totalDmg = 0, totalXp = 0;
-        const subjectMap = {};
-        const datesSet = new Set();
-
-        state.sessions.forEach(s => {
-            totalMinutes += s.durationMinutes;
-            totalDmg += s.damage;
-            totalXp += s.xp;
-            datesSet.add(s.date);
-
-            const subj = s.subject.trim() || 'Estudo Geral';
-            if (!subjectMap[subj]) subjectMap[subj] = { minutes: 0, dmg: 0, sessions: 0 };
-            subjectMap[subj].minutes += s.durationMinutes;
-            subjectMap[subj].dmg += s.damage;
-            subjectMap[subj].sessions++;
-        });
-
-        const totalHours = Math.floor(totalMinutes / 60);
-        const remMinutes = totalMinutes % 60;
-        document.getElementById('stat-total-time').innerText = `${totalHours}h ${remMinutes}m`;
-        document.getElementById('stat-total-dmg').innerText = `${totalDmg} HP`;
-        document.getElementById('stat-total-xp').innerText = totalXp;
-        document.getElementById('stat-total-sessions').innerText = state.sessions.length;
-        document.getElementById('stat-bosses-killed').innerText = state.boss.bossesDefeated || 0;
-
-        const uniqueDays = Math.max(1, datesSet.size);
-        document.getElementById('stat-daily-avg').innerText = `${Math.round(totalMinutes / uniqueDays)} min/dia`;
-
-        const breakdownContainer = document.getElementById('subject-breakdown-container');
-        breakdownContainer.innerHTML = '';
-        Object.keys(subjectMap).sort((a,b) => subjectMap[b].minutes - subjectMap[a].minutes).forEach(key => {
-            const data = subjectMap[key];
-            const row = document.createElement('div');
-            row.className = 'subject-row';
-            row.innerHTML = `
-                <div><strong>${key}</strong> <span style="color:#7c879d;">(${data.sessions} sessões)</span></div>
-                <div style="text-align:right;"><strong>${data.minutes} min</strong> • <span style="color:#ff4757;">-${data.dmg} HP</span></div>
-            `;
-            breakdownContainer.appendChild(row);
-        });
-    }
-};
-
-const SettingsView = {
-    changeBossCycle(hpValue) {
-        const state = Storage.get();
-        state.boss.preset = parseInt(hpValue);
-        state.boss.maxHp = parseInt(hpValue);
-        state.boss.currentHp = Math.min(state.boss.currentHp, state.boss.maxHp);
-        Storage.save(state);
-        UI.render();
-        alert(`Configuração atualizada! Ciclo base ajustado para ${hpValue} HP.`);
-    }
-};
-
-window.onload = () => {
+window.addEventListener('DOMContentLoaded', () => {
     UI.render();
-};
+});

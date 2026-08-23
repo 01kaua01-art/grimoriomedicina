@@ -1,20 +1,15 @@
 const CombatAnimator = {
-    history: [], // Histórico anti-repetição das últimas 3 animações
+    history: [],
     isAnimating: false,
 
-    // Disparado a cada 10 minutos líquidos pelo timer.js
-    triggerMilestoneEvent(milestoneMinutes, sessionMethod) {
+    triggerMilestoneEvent(milestoneMinutes, sessionMethod, preCalculatedOutcome) {
         const state = Storage.get();
         const bossHpRatio = state.boss.currentHp / state.boss.maxHp;
 
-        // 1. Calcula o resultado parcial deste bloco de 10 min
-        const outcome = CombatEngine.calculatePartial(10, sessionMethod);
-
-        // 2. Seleciona a animação adequada conforme o HP e crítico
+        const outcome = preCalculatedOutcome || CombatEngine.calculate(10, sessionMethod, true);
         const anim = this.selectAnimation(bossHpRatio, outcome.isCrit);
 
-        // 3. Executa a camada visual e sonora
-        this.play(anim, outcome, state, milestoneMinutes);
+        this.play(anim, outcome, milestoneMinutes);
     },
 
     selectAnimation(hpRatio, isCrit) {
@@ -25,21 +20,13 @@ const CombatAnimator = {
 
         let availablePool = [...DATABASE.animationPool.common];
 
-        if (hpRatio <= 0.75) {
-            availablePool = availablePool.concat(DATABASE.animationPool.defense);
-        }
-        if (hpRatio <= 0.50) {
-            availablePool = availablePool.concat(DATABASE.animationPool.heavy);
-        }
-        if (hpRatio <= 0.25) {
-            availablePool = availablePool.concat(DATABASE.animationPool.special);
-        }
+        if (hpRatio <= 0.75) availablePool = availablePool.concat(DATABASE.animationPool.defense);
+        if (hpRatio <= 0.50) availablePool = availablePool.concat(DATABASE.animationPool.heavy);
+        if (hpRatio <= 0.25) availablePool = availablePool.concat(DATABASE.animationPool.special);
 
-        // Filtro anti-repetição (penaliza as últimas 3 animações)
         const filtered = availablePool.filter(a => !this.history.includes(a.id));
         const finalPool = filtered.length > 0 ? filtered : availablePool;
 
-        // Sorteio Ponderado por peso (weight)
         const totalWeight = finalPool.reduce((acc, a) => acc + (a.weight || 10), 0);
         let randomWeight = Math.random() * totalWeight;
 
@@ -52,14 +39,13 @@ const CombatAnimator = {
             }
         }
 
-        // Registra histórico
         this.history.push(selected.id);
         if (this.history.length > 3) this.history.shift();
 
         return selected;
     },
 
-    play(anim, outcome, state, milestoneMinutes) {
+    play(anim, outcome, milestoneMinutes) {
         if (this.isAnimating) return;
         this.isAnimating = true;
 
@@ -68,20 +54,14 @@ const CombatAnimator = {
 
         if (!charSprite || !bossSprite) return;
 
-        // Atualiza classes de animação CSS
         charSprite.className = `combat-sprite ${anim.playerClass}`;
         bossSprite.className = `combat-sprite ${anim.bossClass}`;
 
-        // Executa o som de combate correspondente
         if (AudioEngine && AudioEngine.playCombatSound) {
             AudioEngine.playCombatSound(anim.soundType);
         }
 
-        // Exibe banner flutuante de combate
         this.showCombatFeedback(anim.label, outcome.damage, outcome.isCrit, milestoneMinutes);
-
-        // Aplica o dano parcial diretamente no Boss durante a sessão
-        CombatEngine.applyPartialDamage(outcome.damage);
 
         setTimeout(() => {
             charSprite.className = 'combat-sprite idle';

@@ -1,18 +1,4 @@
 const CombatEngine = {
-    calculatePartial(minutes, methodKey) {
-        return this.calculate(minutes, methodKey, true);
-    },
-
-    applyPartialDamage(damage) {
-        const state = Storage.get();
-        state.boss.currentHp = Math.max(0, state.boss.currentHp - damage);
-        Storage.save(state);
-
-        const fillBar = document.getElementById('focus-hp-fill');
-        const curText = document.getElementById('focus-hp-cur');
-        if (fillBar) fillBar.style.width = `${(state.boss.currentHp / state.boss.maxHp) * 100}%`;
-        if (curText) curText.innerText = Math.round(state.boss.currentHp);
-    },
     getTotalAttributes() {
         const state = Storage.get();
         const total = { ...state.player.baseAttributes };
@@ -29,7 +15,6 @@ const CombatEngine = {
         return total;
     },
 
-    // Curva quadrática: Lv 1 -> 250 XP | Lv 5 -> 1.050 XP | Lv 10 -> 2.600 XP
     getXpRequiredForLevel(level) {
         return Math.round(150 + (Math.pow(level, 1.6) * 100));
     },
@@ -45,10 +30,20 @@ const CombatEngine = {
         const bossName = namePool[Math.floor(Math.random() * namePool.length)];
         const bossId = bossName.toLowerCase().replace(/[^a-z0-9]/g, '_');
 
+        // Fisher-Yates Shuffle sem viés estatístico
+        const shuffle = (arr) => {
+            const a = [...arr];
+            for (let i = a.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [a[i], a[j]] = [a[j], a[i]];
+            }
+            return a;
+        };
+
         const traitKeys = Object.keys(DATABASE.traits);
-        const shuffled = traitKeys.sort(() => 0.5 - Math.random());
+        const shuffledTraits = shuffle(traitKeys);
         const traitCount = (rarity === 'legendary' || rarity === 'epic') ? 2 : 1;
-        const selectedTraits = shuffled.slice(0, traitCount);
+        const selectedTraits = shuffledTraits.slice(0, traitCount);
 
         const bossLevel = Math.max(1, Math.floor(defeatedCount * 1.5) + Math.floor(Math.random() * 3));
         
@@ -73,79 +68,62 @@ const CombatEngine = {
         };
     },
 
-    // MOTOR COMPORTAMENTAL: Aplica bônus estritamente baseados em postura, duração e atributos
-    calculate(minutes, methodKey) {
+    calculate(minutes, methodKey, isPartial = false, totalSessionMinutes = minutes) {
         const method = DATABASE.methods[methodKey] || DATABASE.methods.questions;
         const attrs = this.getTotalAttributes();
         const state = Storage.get();
         const equippedIds = Object.values(state.equipment).filter(Boolean);
 
-        // 1. Dano Base por Poder
         let baseDamage = (minutes / 60) * method.damage_per_hour;
         baseDamage *= (1 + (attrs.poder / 100));
 
-        // 2. Modificadores por Método de Estudo
         if (methodKey === 'questions' || methodKey === 'mock_exam') {
             baseDamage *= (1 + (attrs.precisao / 100));
             if (equippedIds.includes('estetoscopio_clinico')) baseDamage *= 1.12;
-            if (equippedIds.includes('master_scalpel')) baseDamage *= 1.15;
         }
 
         if (methodKey === 'flashcards' || methodKey === 'active_combo') {
             baseDamage *= (1 + (attrs.retencao / 100));
-            if (equippedIds.includes('recall_tome')) baseDamage *= 1.15;
             if (equippedIds.includes('atlas_netter')) baseDamage *= 1.15;
         }
 
-        // 3. Modificadores por Duração & Foco Contínuo
-        if (minutes >= 50) {
+        // Bônus de Foco aplica se o bloco total for de 50m+
+        if (totalSessionMinutes >= 50) {
             baseDamage *= (1 + (attrs.foco / 100));
             if (equippedIds.includes('bisturi_anatomista')) baseDamage *= 1.10;
             if (equippedIds.includes('ampulheta_foco')) baseDamage *= 1.15;
             if (equippedIds.includes('tesoura_mayo')) baseDamage *= 1.12;
         }
 
-        // 4. Modificador de Execução (Boss < 20% HP)
         const bossHpPct = state.boss.currentHp / state.boss.maxHp;
         if (bossHpPct < 0.20 && equippedIds.includes('lamina_ultimo_corte')) {
-            baseDamage *= 1.50; // +50% de dano de execução
+            baseDamage *= 1.50;
         }
 
-        // 5. Primeiro Estudo do Dia (Bisturi de Cooper)
-        const todayStr = new Date().toISOString().split('T')[0];
-        const sessionsToday = state.sessions.filter(s => s.date === todayStr);
-        if (sessionsToday.length === 0 && equippedIds.includes('bisturi_cooper')) {
-            baseDamage *= 1.20;
-        }
-
-        // 6. Penalidades de Trait do Boss
         if (state.boss.traits && state.boss.traits.includes('relentless')) {
             baseDamage *= 0.85;
         }
 
-        // 7. Multiplicador de Combo e Crítico
         let streakBonus = 1.0 + ((state.player.consecutiveDays || 1) * 0.05);
         if (equippedIds.includes('marcapasso_ancestral')) streakBonus += 0.05;
         const combo = Math.min(1.35, streakBonus);
 
-        let isCrit = minutes >= 50;
+        let isCrit = (!isPartial && totalSessionMinutes >= 50);
+        if (isPartial) isCrit = Math.random() < 0.20;
         if (equippedIds.includes('olho_hipocrates') && (methodKey === 'questions' || methodKey === 'mock_exam')) {
-            isCrit = true; // Crítico garantido pelo Olho de Hipócrates
+            isCrit = true;
         }
 
         let critMultiplier = 1.5 + (attrs.foco / 100);
         let totalDamage = baseDamage * combo;
         if (isCrit) totalDamage *= critMultiplier;
 
-        // 8. Cálculo de XP Permanente
         let totalXp = (minutes / 60) * method.xp_per_hour;
         totalXp *= (1 + (attrs.intelecto / 100));
 
-        if (equippedIds.includes('scholars_grimoire')) totalXp *= 1.10;
         if (equippedIds.includes('anel_sinapse')) totalXp *= 1.08;
-        if (equippedIds.includes('caduceus_staff')) totalXp *= 1.15;
         if (equippedIds.includes('codex_katzung') && methodKey === 'questions') totalXp *= 1.15;
-        if (equippedIds.includes('estetoscopio_laennec') && minutes >= 60) totalXp *= 1.25;
+        if (equippedIds.includes('estetoscopio_laennec') && totalSessionMinutes >= 60) totalXp *= 1.25;
         if (isCrit) totalXp *= 1.20;
 
         return {
@@ -157,7 +135,7 @@ const CombatEngine = {
 
     rollLoot(bossRarity) {
         const attrs = this.getTotalAttributes();
-        const fortuna = attrs.fortuna || 5;
+        const fortuna = attrs.fortuna || 1;
 
         const roll = Math.random() * 100;
         let rarity = 'common';
@@ -169,9 +147,7 @@ const CombatEngine = {
         else if (roll < 55) rarity = 'uncommon';
 
         const matchingItems = Object.values(DATABASE.items).filter(i => i.rarity === rarity);
-        const selected = matchingItems[Math.floor(Math.random() * matchingItems.length)] || DATABASE.items.alianca_academico;
-
-        return selected;
+        return matchingItems[Math.floor(Math.random() * matchingItems.length)] || DATABASE.items.alianca_academico;
     },
 
     checkTrophies(state) {
@@ -189,7 +165,7 @@ const CombatEngine = {
 
     applySession(subject, methodKey, minutes) {
         const state = Storage.get();
-        const outcome = this.calculate(minutes, methodKey);
+        const outcome = this.calculate(minutes, methodKey, false, minutes);
         const currentBossCopy = { ...state.boss };
 
         state.boss.currentHp = Math.max(0, state.boss.currentHp - outcome.damage);
@@ -216,14 +192,13 @@ const CombatEngine = {
                 icon: state.boss.icon
             };
             state.bestiary[state.boss.id].defeatedCount++;
-            state.bestiary[state.boss.id].firstDefeatDate = state.bestiary[state.boss.id].firstDefeatDate || new Date().toISOString();
 
             const nextBoss = this.generateProceduralBoss(state.boss.bossesDefeated, state.boss.preset || 12000);
             state.boss = { ...nextBoss, bossesDefeated: state.boss.bossesDefeated, preset: state.boss.preset };
         }
 
         let xpGained = outcome.xp;
-        if (bossDefeated && currentBossCopy.traits.includes('colossal')) {
+        if (bossDefeated && currentBossCopy.traits && currentBossCopy.traits.includes('colossal')) {
             xpGained = Math.round(xpGained * 1.4);
         }
 
@@ -238,21 +213,30 @@ const CombatEngine = {
             state.player.level++;
             levelUps++;
 
-            Object.keys(state.player.baseAttributes).forEach(k => {
-                state.player.baseAttributes[k] += 1;
-            });
+            const attrKeys = Object.keys(state.player.baseAttributes);
+            const randomAttr = attrKeys[Math.floor(Math.random() * attrKeys.length)];
+            state.player.baseAttributes[randomAttr] += 1;
         }
 
-        const masteryGain = methodKey === 'passive_reading' ? 1 : methodKey === 'flashcards' ? 2 : 3;
-        state.player.mastery = Math.min(100, (state.player.mastery || 50) + masteryGain);
+        // Streak com quebra em dias pulados
+        const today = new Date();
+        const todayStr = today.toISOString().split('T')[0];
 
-        const todayStr = new Date().toISOString().split('T')[0];
-        if (state.player.lastStudyDate !== todayStr) {
-            state.player.consecutiveDays = (state.player.consecutiveDays || 0) + 1;
-            state.player.lastStudyDate = todayStr;
+        if (state.player.lastStudyDate) {
+            const lastDate = new Date(state.player.lastStudyDate);
+            const diffMs = today - lastDate;
+            const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+
+            if (diffDays === 1) {
+                state.player.consecutiveDays = (state.player.consecutiveDays || 0) + 1;
+            } else if (diffDays > 1) {
+                state.player.consecutiveDays = 1;
+            }
+        } else {
+            state.player.consecutiveDays = 1;
         }
+        state.player.lastStudyDate = todayStr;
 
-        // Registro da Sessão (A matéria livre é salva apenas para histórico de consulta)
         const sessionRecord = {
             id: Date.now().toString(),
             date: todayStr,
@@ -268,9 +252,10 @@ const CombatEngine = {
         };
 
         this.checkTrophies(state);
-
+        
+        // Persistência Atômica Unificada (sem double-save)
+        state.sessions.unshift(sessionRecord);
         Storage.save(state);
-        Storage.addSession(sessionRecord);
 
         AudioEngine.playHit(outcome.isCrit);
 

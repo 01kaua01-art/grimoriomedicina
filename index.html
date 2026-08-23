@@ -500,6 +500,7 @@
     <div id="tab-config" class="tab-panel">
         <div class="config-card">
             <h2><i class="fa-solid fa-gear"></i> CONFIGURAÇÕES</h2>
+            
             <div class="config-group">
                 <label>Ciclo Base de Vitalidade dos Bosses</label>
                 <select id="config-boss-preset" onchange="SettingsView.changeBossCycle(this.value)">
@@ -509,7 +510,23 @@
                     <option value="60000">Bosses Titânicos (60.000 HP)</option>
                 </select>
             </div>
-            <div class="config-group">
+
+            <!-- BACKUP & RESTAURAÇÃO DE PROGRESSO -->
+            <div class="config-group" style="margin-top: 14px;">
+                <label><i class="fa-solid fa-cloud-arrow-down"></i> Backup & Transferência de Save</label>
+                <div style="display: flex; gap: 8px; margin-top: 6px;">
+                    <button class="btn-secondary" style="flex: 1; padding: 10px;" onclick="Storage.exportSave()">
+                        <i class="fa-solid fa-file-export"></i> Exportar Save (.json)
+                    </button>
+                    
+                    <button class="btn-primary" style="flex: 1; padding: 10px;" onclick="document.getElementById('import-save-input').click()">
+                        <i class="fa-solid fa-file-import"></i> Importar Save
+                    </button>
+                    <input type="file" id="import-save-input" accept=".json" style="display: none;" onchange="Storage.importSave(event)">
+                </div>
+            </div>
+
+            <div class="config-group" style="margin-top: 18px; border-top: 1px solid var(--border-color); padding-top: 14px;">
                 <button class="btn-danger" onclick="Storage.resetAllData()"><i class="fa-solid fa-trash"></i> Resetar Todos os Dados</button>
             </div>
         </div>
