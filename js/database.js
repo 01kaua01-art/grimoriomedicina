@@ -88,7 +88,33 @@ const DATABASE = {
         active_combo: { name: 'Combo Ativo / Explicação', damage_per_hour: 2000, xp_per_hour: 150 },
         mock_exam: { name: 'Simulado de Alta Carga', damage_per_hour: 2500, xp_per_hour: 200 }
     },
-
+animationPool: {
+        common: [
+            { id: 'quick_slash', label: '⚔️ CORTE RÁPIDO', playerClass: 'anim-slash', bossClass: 'anim-hit', soundType: 'slash', weight: 40 },
+            { id: 'thrust', label: '🗡️ ESTOCADA PRECISA', playerClass: 'anim-thrust', bossClass: 'anim-hit', soundType: 'slash', weight: 30 },
+            { id: 'vertical_strike', label: '⚔️ GOLPE VERTICAL', playerClass: 'anim-slash', bossClass: 'anim-hit', soundType: 'slash', weight: 25 },
+            { id: 'double_strike', label: '⚔️ SEQUÊNCIA DUPLA', playerClass: 'anim-thrust', bossClass: 'anim-hit', soundType: 'slash', weight: 20 }
+        ],
+        defense: [
+            { id: 'parry_counter', label: '🛡️ APARAR & CONTRA-ATAQUE', playerClass: 'anim-parry', bossClass: 'anim-recoil', soundType: 'block', weight: 25 },
+            { id: 'dodge_maneuver', label: '💨 ESQUIVA TÁTICA', playerClass: 'anim-dodge', bossClass: 'anim-recoil', soundType: 'block', weight: 20 }
+        ],
+        heavy: [
+            { id: 'heavy_cleave', label: '🔨 GOLPE PESADO', playerClass: 'anim-heavy', bossClass: 'anim-stagger', soundType: 'heavy', weight: 30 },
+            { id: 'whirlwind', label: '🌪️ ATAQUE GIRATÓRIO', playerClass: 'anim-spin', bossClass: 'anim-stagger', soundType: 'heavy', weight: 25 }
+        ],
+        special: [
+            { id: 'grimoire_pulse', label: '✨ PULSO DO GRIMÓRIO', playerClass: 'anim-cast', bossClass: 'anim-shock', soundType: 'magic', weight: 30 },
+            { id: 'synapse_discharge', label: '⚡ DESCARGA SINÁPTICA', playerClass: 'anim-spark', bossClass: 'anim-shock', soundType: 'magic', weight: 25 },
+            { id: 'anatomical_sigil', label: '💠 SÍMBOLO ANATÔMICO', playerClass: 'anim-cast', bossClass: 'anim-shock', soundType: 'magic', weight: 20 }
+        ],
+        critical: [
+            { id: 'critical_strike', label: '✦ GOLPE CRÍTICO ✦', playerClass: 'anim-crit', bossClass: 'anim-crit-hit', soundType: 'crit', weight: 100 }
+        ],
+        rare: [
+            { id: 'execution', label: '💀 EXECUÇÃO CLÍNICA', playerClass: 'anim-execute', bossClass: 'anim-execute-boss', soundType: 'execute', weight: 10 }
+        ]
+    },
     trophies: [
         { id: 'first_blood', name: 'Primeira Vitória', desc: 'Derrote seu primeiro Boss Global.', icon: 'fa-skull', check: s => (s.boss.bossesDefeated || 0) >= 1 },
         { id: 'titan_hunter', name: 'Caçador de Titãs', desc: 'Derrote 10 Bosses Globais.', icon: 'fa-shield-halved', check: s => (s.boss.bossesDefeated || 0) >= 10 },

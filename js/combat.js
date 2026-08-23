@@ -1,4 +1,18 @@
 const CombatEngine = {
+    calculatePartial(minutes, methodKey) {
+        return this.calculate(minutes, methodKey, true);
+    },
+
+    applyPartialDamage(damage) {
+        const state = Storage.get();
+        state.boss.currentHp = Math.max(0, state.boss.currentHp - damage);
+        Storage.save(state);
+
+        const fillBar = document.getElementById('focus-hp-fill');
+        const curText = document.getElementById('focus-hp-cur');
+        if (fillBar) fillBar.style.width = `${(state.boss.currentHp / state.boss.maxHp) * 100}%`;
+        if (curText) curText.innerText = Math.round(state.boss.currentHp);
+    },
     getTotalAttributes() {
         const state = Storage.get();
         const total = { ...state.player.baseAttributes };

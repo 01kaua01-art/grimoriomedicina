@@ -1,4 +1,5 @@
 const StudyTimer = {
+    lastMilestoneMinutes: 0,
     mode: 'countdown', // 'countdown' (Regressivo) ou 'stopwatch' (Livre)
     durationMinutes: 50,
     startTimestamp: null,
@@ -34,7 +35,23 @@ const StudyTimer = {
     start() {
         this.activeSubject = document.getElementById('input-subject').value;
         this.activeMethod = document.getElementById('select-method').value;
+        
+        // 1. O state PRECISA ser carregado antes de qualquer verificação
         const state = Storage.get();
+
+        // 2. Configuração dos atores no palco de combate
+        let rank = DATABASE.ranks[0];
+        DATABASE.ranks.forEach(r => {
+            if (state.player.level >= r.level) rank = r;
+        });
+
+        const charSprite = document.getElementById('arena-character-sprite');
+        const bossSprite = document.getElementById('arena-boss-sprite');
+        const bossTag = document.getElementById('arena-boss-tag');
+
+        if (charSprite) charSprite.src = rank.icon;
+        if (bossSprite) bossSprite.src = state.boss.icon;
+        if (bossTag) bossTag.innerText = state.boss.name.toUpperCase();
 
         document.getElementById('focus-boss-name').innerText = state.boss.name.toUpperCase();
         document.getElementById('focus-subject-display').innerText = this.activeSubject.trim() || 'Estudo Livre Sem Restrições';
@@ -44,16 +61,19 @@ const StudyTimer = {
         document.getElementById('focus-hp-fill').style.width = `${(state.boss.currentHp / state.boss.maxHp) * 100}%`;
 
         const focusTraits = document.getElementById('focus-traits-display');
-        focusTraits.innerHTML = '';
-        state.boss.traits.forEach(tKey => {
-            const trait = DATABASE.traits[tKey];
-            if (trait) {
-                focusTraits.innerHTML += `<span class="trait-pill"><i class="fa-solid ${trait.icon}"></i> ${trait.name}</span>`;
-            }
-        });
+        if (focusTraits) {
+            focusTraits.innerHTML = '';
+            state.boss.traits.forEach(tKey => {
+                const trait = DATABASE.traits[tKey];
+                if (trait) {
+                    focusTraits.innerHTML += `<span class="trait-pill"><i class="fa-solid ${trait.icon}"></i> ${trait.name}</span>`;
+                }
+            });
+        }
 
         this.isRunning = true;
         this.startTimestamp = Date.now();
+        this.lastMilestoneMinutes = 0;
 
         if (this.mode === 'countdown') {
             this.targetTimestamp = Date.now() + (this.durationMinutes * 60 * 1000);
@@ -62,6 +82,17 @@ const StudyTimer = {
         document.getElementById('battle-overlay').classList.add('active');
 
         this.interval = setInterval(() => {
+            const elapsedLiquidSec = Math.floor((Date.now() - this.startTimestamp) / 1000);
+            const elapsedLiquidMin = Math.floor(elapsedLiquidSec / 60);
+
+            // Gatilho a cada 10 minutos líquidos
+            if (elapsedLiquidMin > 0 && elapsedLiquidMin % 10 === 0 && this.lastMilestoneMinutes !== elapsedLiquidMin) {
+                this.lastMilestoneMinutes = elapsedLiquidMin;
+                if (typeof CombatAnimator !== 'undefined') {
+                    CombatAnimator.triggerMilestoneEvent(elapsedLiquidMin, this.activeMethod);
+                }
+            }
+
             if (this.mode === 'countdown') {
                 const remaining = Math.max(0, Math.ceil((this.targetTimestamp - Date.now()) / 1000));
                 const m = Math.floor(remaining / 60).toString().padStart(2, '0');
@@ -72,14 +103,13 @@ const StudyTimer = {
                     this.complete();
                 }
             } else {
-                // Modo Cronômetro Livre (Conta para cima)
-                const elapsedSec = Math.floor((Date.now() - this.startTimestamp) / 1000);
-                const m = Math.floor(elapsedSec / 60).toString().padStart(2, '0');
-                const s = (elapsedSec % 60).toString().padStart(2, '0');
+                const m = Math.floor(elapsedLiquidSec / 60).toString().padStart(2, '0');
+                const s = (elapsedLiquidSec % 60).toString().padStart(2, '0');
                 document.getElementById('focus-clock').innerText = `${m}:${s}`;
             }
         }, 500);
     },
+    
 
     abort() {
         if (confirm('Deseja abortar a batalha? O tempo desta sessão não será computado.')) {
