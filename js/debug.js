@@ -1,6 +1,5 @@
 const DevTools = {
     init() {
-        // Cria a barra flutuante de debug na tela
         const bar = document.createElement('div');
         bar.id = 'dev-debug-panel';
         bar.style.cssText = `
@@ -15,11 +14,11 @@ const DevTools = {
             <button onclick="DevTools.killBoss()" style="padding:4px 8px; font-size:11px; cursor:pointer;">Matar Boss</button>
             <button onclick="DevTools.giveAllLoot()" style="padding:4px 8px; font-size:11px; cursor:pointer;">Dropar Todos Itens</button>
             <button onclick="DevTools.levelUp(5)" style="padding:4px 8px; font-size:11px; cursor:pointer;">+5 Níveis</button>
-            <button onclick="DevTools.runAutoStressTest(50)" style="padding:4px 8px; font-size:11px; background:#e74c3c; color:#fff; cursor:pointer;">Rodar Teste de Estresse (50x)</button>
+            <button onclick="DevTools.givePoints(5)" style="padding:4px 8px; font-size:11px; background:#f1c40f; color:#000; font-weight:bold; cursor:pointer;">+5 Pontos Livres</button>
+            <button onclick="DevTools.runAutoStressTest(50)" style="padding:4px 8px; font-size:11px; background:#e74c3c; color:#fff; cursor:pointer;">Teste Estresse (50x)</button>
         `;
         document.body.appendChild(bar);
 
-        // Tecla de atalho F2 para abrir/fechar o menu
         window.addEventListener('keydown', (e) => {
             if (e.key === 'F2') {
                 bar.style.display = bar.style.display === 'none' ? 'flex' : 'none';
@@ -39,18 +38,24 @@ const DevTools = {
         Storage.save(state);
         CombatEngine.applySession('Golpe Fatal Dev', 'questions', 10);
         UI.render();
+        if (CharacterHub) CharacterHub.render();
     },
 
     levelUp(levels = 1) {
         const state = Storage.get();
-        for (let i = 0; i < levels; i++) {
-            state.player.level++;
-            const attrKeys = Object.keys(state.player.baseAttributes);
-            const randomAttr = attrKeys[Math.floor(Math.random() * attrKeys.length)];
-            state.player.baseAttributes[randomAttr] += 1;
-        }
+        state.player.level += levels;
+        state.player.attributePoints = (state.player.attributePoints || 0) + (levels * 2);
         Storage.save(state);
         UI.render();
+        if (CharacterHub) CharacterHub.render();
+    },
+
+    givePoints(points = 5) {
+        const state = Storage.get();
+        state.player.attributePoints = (state.player.attributePoints || 0) + points;
+        Storage.save(state);
+        UI.render();
+        if (CharacterHub) CharacterHub.render();
     },
 
     giveAllLoot() {
@@ -58,20 +63,18 @@ const DevTools = {
         state.inventory = Object.keys(DATABASE.items);
         Storage.save(state);
         UI.render();
+        if (CharacterHub) CharacterHub.render();
     },
 
-    // 2. TESTE DE ESTRESSE AUTOMÁTICO: Roda dezenas de batalhas em 1 segundo
     runAutoStressTest(iterations = 50) {
         console.group(`Iniciando Teste Automatizado (${iterations} ciclos)...`);
         let errors = 0;
 
         for (let i = 1; i <= iterations; i++) {
             try {
-                // Simula sessões variadas e equipa loots aleatórios
-                const session = CombatEngine.applySession(`Teste Estresse #${i}`, 'questions', 50);
+                CombatEngine.applySession(`Teste Estresse #${i}`, 'questions', 50);
                 const state = Storage.get();
                 
-                // Validações de sanidade matemática
                 if (isNaN(state.player.level) || isNaN(state.boss.currentHp)) {
                     throw new Error(`NaN detectado no ciclo ${i}`);
                 }
@@ -86,6 +89,7 @@ const DevTools = {
         }
 
         UI.render();
+        if (CharacterHub) CharacterHub.render();
         console.log(`✅ Teste concluído com ${errors} erros.`);
         console.groupEnd();
         alert(`Teste de estresse finalizado com ${errors} erros! Verifique o console (F12).`);

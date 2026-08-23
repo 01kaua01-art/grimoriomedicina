@@ -45,10 +45,17 @@ const CharacterHub = {
 
     allocatePoint(attrKey) {
         const state = Storage.get();
-        if ((state.player.attributePoints || 0) > 0) {
-            state.player.attributePoints -= 1;
+        const available = state.player.attributePoints || 0;
+
+        if (available > 0) {
+            state.player.attributePoints = available - 1;
             state.player.baseAttributes[attrKey] = (state.player.baseAttributes[attrKey] || 0) + 1;
             Storage.save(state);
+            
+            if (AudioEngine && AudioEngine.playCombatSound) {
+                AudioEngine.playCombatSound('magic');
+            }
+
             this.renderOverview(state);
             UI.render();
         }
@@ -77,24 +84,41 @@ const CharacterHub = {
         document.getElementById('char-hl-streak').innerText = `${state.player.consecutiveDays || 1}d`;
         document.getElementById('char-hl-loot').innerText = state.inventory.length;
 
+        // Painel de Atributos e Distribuição de Pontos
         const attrsList = document.getElementById('attributes-bars-list');
         const availablePoints = state.player.attributePoints || 0;
         
-        attrsList.innerHTML = availablePoints > 0 
-            ? `<div style="background: rgba(212, 175, 55, 0.15); border: 1px solid var(--gold); padding: 8px; border-radius: 6px; margin-bottom: 12px; text-align: center; color: var(--gold); font-weight: bold;">
-                ✦ Você possui ${availablePoints} ponto(s) de atributo para distribuir!
-               </div>`
-            : '';
+        let headerBanner = '';
+        if (availablePoints > 0) {
+            headerBanner = `
+                <div style="background: rgba(212, 175, 55, 0.18); border: 1px solid var(--gold); padding: 8px 12px; border-radius: 6px; margin-bottom: 12px; text-align: center; color: var(--gold); font-weight: bold; font-size: 0.9rem; animation: pulse 2s infinite;">
+                    ✦ ${availablePoints} Ponto(s) de Atributo Disponíveis para Distribuir!
+                </div>`;
+        } else {
+            headerBanner = `
+                <div style="background: #0b0c11; border: 1px solid var(--border-color); padding: 6px 10px; border-radius: 6px; margin-bottom: 12px; text-align: center; color: var(--text-muted); font-size: 0.8rem;">
+                    Pontos de Atributo Disponíveis: <strong style="color: #fff;">0</strong> (Suba de nível para ganhar +2)
+                </div>`;
+        }
 
+        attrsList.innerHTML = headerBanner;
         const totalAttrs = CombatEngine.getTotalAttributes();
 
         Object.entries(DATABASE.attributesMeta).forEach(([key, meta]) => {
             const val = totalAttrs[key] || 1;
             const pct = Math.min(100, (val / 100) * 100);
             
-            const plusBtn = availablePoints > 0 
-                ? `<button onclick="CharacterHub.allocatePoint('${key}')" style="background: var(--gold); border: none; color: #000; font-weight: bold; width: 22px; height: 22px; border-radius: 4px; cursor: pointer; margin-left: 8px;">+</button>` 
-                : '';
+            const btnStyle = availablePoints > 0
+                ? "background: var(--gold); color: #000; cursor: pointer; opacity: 1; box-shadow: 0 0 8px rgba(212, 175, 55, 0.5);"
+                : "background: #222; color: #555; cursor: not-allowed; opacity: 0.4;";
+
+            const plusBtn = `
+                <button 
+                    onclick="CharacterHub.allocatePoint('${key}')" 
+                    ${availablePoints === 0 ? 'disabled' : ''}
+                    style="${btnStyle} border: none; font-weight: 900; font-size: 13px; width: 22px; height: 22px; border-radius: 4px; margin-left: 8px; transition: all 0.2s;">
+                    +
+                </button>`;
 
             attrsList.innerHTML += `
                 <div class="attr-row">
@@ -297,6 +321,8 @@ const CharacterHub = {
         document.getElementById('item-inspect-modal').classList.remove('active');
     }
 };
+
+window.CharacterHub = CharacterHub;
 
 const CalendarView = {
     currentYear: new Date().getFullYear(),

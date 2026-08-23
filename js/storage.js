@@ -13,6 +13,7 @@ const Storage = {
                 consecutiveDays: 1,
                 lastStudyDate: null,
                 mastery: 10,
+                attributePoints: 0,
                 baseAttributes: {
                     poder: 1,
                     intelecto: 1,
@@ -61,6 +62,9 @@ const Storage = {
 
         if (version < 2) {
             data._version = 2;
+            if (data.player && data.player.attributePoints === undefined) {
+                data.player.attributePoints = 0;
+            }
             if (!data.player.mastery) data.player.mastery = 10;
             if (!data.stats) data.stats = { totalDamage: 0, maxSessionDamage: 0 };
             this.save(data);
@@ -72,7 +76,6 @@ const Storage = {
     get() {
         const raw = localStorage.getItem(STORAGE_KEY);
         if (!raw) {
-            // Tenta recuperar save v1 legado caso exista
             const legacyRaw = localStorage.getItem('medrpg_save_v1');
             if (legacyRaw) {
                 try {

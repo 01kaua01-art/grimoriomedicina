@@ -30,7 +30,6 @@ const CombatEngine = {
         const bossName = namePool[Math.floor(Math.random() * namePool.length)];
         const bossId = bossName.toLowerCase().replace(/[^a-z0-9]/g, '_');
 
-        // Fisher-Yates Shuffle sem viés estatístico
         const shuffle = (arr) => {
             const a = [...arr];
             for (let i = a.length - 1; i > 0; i--) {
@@ -87,7 +86,6 @@ const CombatEngine = {
             if (equippedIds.includes('atlas_netter')) baseDamage *= 1.15;
         }
 
-        // Bônus de Foco aplica se o bloco total for de 50m+
         if (totalSessionMinutes >= 50) {
             baseDamage *= (1 + (attrs.foco / 100));
             if (equippedIds.includes('bisturi_anatomista')) baseDamage *= 1.10;
@@ -212,13 +210,10 @@ const CombatEngine = {
             state.player.currentXp -= this.getXpRequiredForLevel(state.player.level);
             state.player.level++;
             levelUps++;
-
-            const attrKeys = Object.keys(state.player.baseAttributes);
-            const randomAttr = attrKeys[Math.floor(Math.random() * attrKeys.length)];
-            state.player.baseAttributes[randomAttr] += 1;
+            state.player.attributePoints = (state.player.attributePoints || 0) + 2;
         }
 
-        // Streak com quebra em dias pulados
+        // Lógica de Sequência Diária (Streak)
         const today = new Date();
         const todayStr = today.toISOString().split('T')[0];
 
@@ -237,34 +232,38 @@ const CombatEngine = {
         }
         state.player.lastStudyDate = todayStr;
 
+        // 1. Cria a estrutura da sessão primeiro
         const sessionRecord = {
             id: Date.now().toString(),
             date: todayStr,
             time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             durationMinutes: minutes,
-            subject: subject.trim() || 'Estudo Geral',
+            subject: (subject && subject.trim()) || 'Estudo Geral',
             bossName: currentBossCopy.name,
             methodKey: methodKey,
-            methodName: DATABASE.methods[methodKey].name,
+            methodName: (DATABASE.methods[methodKey] && DATABASE.methods[methodKey].name) || 'Estudo',
             damage: outcome.damage,
             xp: xpGained,
             isCrit: outcome.isCrit
         };
 
-        this.checkTrophies(state);
-        
-        // Persistência Atômica Unificada (sem double-save)
+        // 2. Adiciona a sessão ao histórico e salva o estado
         state.sessions.unshift(sessionRecord);
+        this.checkTrophies(state);
         Storage.save(state);
 
-        AudioEngine.playHit(outcome.isCrit);
+        if (typeof AudioEngine !== 'undefined' && AudioEngine.playHit) {
+            AudioEngine.playHit(outcome.isCrit);
+        }
 
-        if (bossDefeated && droppedItem) {
-            AudioEngine.playLoot(droppedItem.rarity);
-            UI.showVictoryLootModal(currentBossCopy, droppedItem);
-        } else if (levelUps > 0) {
-            AudioEngine.playLevelUp();
-            UI.showLevelUpModal(oldLevel, state.player.level);
+        if (typeof UI !== 'undefined') {
+            if (bossDefeated && droppedItem) {
+                if (typeof AudioEngine !== 'undefined' && AudioEngine.playLoot) AudioEngine.playLoot(droppedItem.rarity);
+                UI.showVictoryLootModal(currentBossCopy, droppedItem);
+            } else if (levelUps > 0) {
+                if (typeof AudioEngine !== 'undefined' && AudioEngine.playLevelUp) AudioEngine.playLevelUp();
+                UI.showLevelUpModal(oldLevel, state.player.level, levelUps * 2);
+            }
         }
 
         return sessionRecord;
