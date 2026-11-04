@@ -30,7 +30,7 @@
     },
   };
   function warp(min) {
-    const a = S().active; if (!a) return done('sem sessão ativa');
+    const a = S().active; if (!a) return done('inicie uma batalha primeiro: estes botões avançam o relógio dela');
     // Estica o último segmento para trás: soma tempo líquido sem mexer nos anteriores.
     a.segments[a.segments.length - 1].start -= min * MIN;
     a.startedAt -= min * MIN;
