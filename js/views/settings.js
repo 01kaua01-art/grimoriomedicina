@@ -61,6 +61,7 @@
             <div class="set-row"><div><b>Reduzir animações</b><span>Desliga partículas, tremores e animações.</span></div>${toggle('reducedMotion', st.reducedMotion)}</div>
           </section>
           <div class="grid">
+            ${MR.Account.card()}
             <section class="card">
               <h2 class="card-title">${gi('crowned-skull')} Vitalidade dos Guardiões</h2>
               <p class="muted" style="font-size:13px;margin-top:0">Vale a partir do <b>próximo</b> boss — o atual não é alterado.</p>
@@ -68,7 +69,7 @@
             </section>
             <section class="card">
               <h2 class="card-title">${ui('download')} Backup</h2>
-              <p class="muted" style="font-size:13px;margin-top:0">Seu progresso fica salvo neste navegador. Exporte para não perder ou levar para outro dispositivo. Saves do MedRPG antigo também podem ser importados.</p>
+              <p class="muted" style="font-size:13px;margin-top:0">Seu progresso fica salvo neste navegador${MR.Cloud.user ? ' e na nuvem' : ''}. Exporte para não perder ou levar para outro dispositivo. Saves do MedRPG antigo também podem ser importados.</p>
               <div style="display:flex;gap:10px;flex-wrap:wrap">
                 <button class="btn" data-act="export">${ui('download')} Exportar save</button>
                 <label class="btn">${ui('upload')} Importar save<input type="file" accept=".json,application/json" data-change="import" hidden></label>

@@ -142,6 +142,7 @@
       const f = bd.querySelector('input, textarea, .btn.primary'); if (f) setTimeout(() => f.focus(), 50);
       return entry;
     },
+    closeModal(key) { const m = stack.find((x) => x.key === key); if (m) m.close(true); },
     closeTopModal() { const m = stack[stack.length - 1]; if (m && m.dismissable) { m.close(); return true; } return false; },
     closeAllModals() { [...stack].forEach((m) => m.close(true)); },
     topModal() { return stack[stack.length - 1] || null; },
@@ -221,6 +222,7 @@
           ${s.player.points ? `<button class="pill points" data-act="go" data-view="hero">${gi('sparkles')} <b>${s.player.points}</b> <span>pontos</span></button>` : ''}
           <span class="pill flame ${streak ? '' : 'off'}" data-tip="Sequência de ${streak} dia(s). Combo de Foco x${combo.toFixed(2)} no dano.${s.streak.freezes ? ` ${s.streak.freezes} proteção(ões) de sequência.` : ''}">${gi('flame')} <b>${streak}</b> <span>x${combo.toFixed(2)}</span>${s.streak.freezes ? ` <span style="color:#7dd3fc">❄${s.streak.freezes}</span>` : ''}</span>
           <span class="pill essence" data-tip="Essência Arcana: obtida com contratos e itens repetidos. Use para refinar equipamentos.">${gi('crystal-shine')} <b>${fmt(s.essence)}</b></span>
+          ${MR.Account ? MR.Account.hudChip() : ''}
           <button class="icon-btn" data-act="toggle-sound" aria-label="Som" data-tip="${sound ? 'Silenciar' : 'Ativar som'}">${ui(sound ? 'volume-2' : 'volume-x')}</button>
         </div>`;
     },

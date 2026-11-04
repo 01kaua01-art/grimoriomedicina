@@ -4,8 +4,7 @@
  * ========================================================================= */
 (function (MR) {
   'use strict';
-  const { gi } = MR;
-  const U = MR.UI, E = MR.Engine, St = MR.Store;
+    const U = MR.UI, E = MR.Engine, St = MR.Store;
 
   function announce(events) {
     for (const ev of events) {
@@ -22,34 +21,19 @@
     }
   }
 
+  /** Primeira visita (ou depois de sair da conta sem save de visitante). */
   function onboarding() {
     const s = St.get();
-    if (s.onboarded) return;
-    const m = U.modal(`
-      <div style="text-align:center">
-        <div style="font-size:72px;color:var(--gold);filter:drop-shadow(0 0 20px rgba(226,184,87,.4))">${gi('caduceus')}</div>
-        <h2 style="font-size:26px">Bem-vindo ao Grimório Clínico</h2>
-        <p class="sub">O <b>Esquecimento</b> ganhou forma. Seu único poder contra ele é o tempo de estudo de verdade.</p>
-      </div>
-      <div class="effects-list" style="margin:14px 0">
-        <div class="effect" style="--rc:var(--crimson)">${gi('crossed-swords')}<div><b>Estude para atacar.</b> A cada 5 min de foco você desfere um golpe no Guardião. Questões e simulados batem mais forte que a leitura passiva.</div></div>
-        <div class="effect" style="--rc:var(--teal)">${gi('sands-of-time')}<div><b>Não pare.</b> Blocos contínuos ativam o <b>Fluxo</b> e dias seguidos aumentam o <b>Combo de Foco</b>.</div></div>
-        <div class="effect" style="--rc:var(--gold)">${gi('chest')}<div><b>Colete e evolua.</b> Bosses derrotados deixam equipamentos com efeitos reais nas suas sessões.</div></div>
-      </div>
-      <div class="field"><label for="ob-name">Como devemos chamar você?</label><input id="ob-name" class="input" maxlength="24" placeholder="Seu nome de herói" value=""></div>
-      <div class="modal-actions"><button class="btn primary lg block" id="ob-go">${gi('crossed-swords')} Começar a jornada</button></div>`, { dismissable: false });
-    const go = () => {
-      const v = m.el.querySelector('#ob-name').value.trim();
-      if (v) s.player.name = v;
-      s.onboarded = true; St.save(); m.close(true);
-      MR.Audio.unlock(); MR.Audio.play('start');
-    };
-    m.el.querySelector('#ob-go').addEventListener('click', go);
-    m.el.querySelector('#ob-name').addEventListener('keydown', (e) => { if (e.key === 'Enter') go(); });
+    if (s.onboarded || St.owner()) return;
+    MR.Account.welcome();
   }
 
   function boot() {
+    // Abre direto no save da conta lembrada neste aparelho (sem esperar a rede).
+    const uid = MR.Cloud.peekUserId();
+    St.use(uid);
     const s = St.load();
+    if (uid) s.onboarded = true;
     E.ensureBoss(s);
     const events = E.rollover(s);
     const stale = s.active ? E.recoverStale(s) : false;
@@ -58,6 +42,7 @@
     document.body.classList.toggle('reduce-motion', !!s.settings.reducedMotion);
 
     MR.FX.init();
+    MR.Cloud.init(); // antes do 1º render: telas como o Ranking já usam a nuvem
     St.subscribe(() => U.render());
     const hash = location.hash.replace('#', '');
     U.current = MR.Views[hash] ? hash : 'battle';
@@ -73,13 +58,14 @@
       MR.Focus.open();
       if (stale) U.toast('A batalha ficou sem registro enquanto o navegador esteve fechado e foi <b>pausada</b> no último momento salvo. Retome quando quiser.', { icon: 'pause', uiIcon: true, ms: 9000 });
     }
-    onboarding();
+    // Voltando do login com Google, a sessão chega em instantes: não mostra a tela de boas-vindas.
+    if (!MR.Cloud.returningFromOAuth()) onboarding();
 
     setInterval(dailyCheck, 60000);
     addEventListener('hashchange', () => { const h = location.hash.replace('#', ''); if (h !== U.current && MR.Views[h]) U.go(h); });
     addEventListener('pointerdown', () => MR.Audio.unlock(), { once: true });
     addEventListener('storage', (e) => {
-      if (e.key !== St.KEY) return;
+      if (e.key !== St.key()) return;
       // Outra aba alterou o save: recarrega para não sobrescrever o progresso dela.
       St.load(); U.closeAllModals(); U.render();
       if (St.get().active) MR.Focus.open(); else MR.Focus.close(true);
@@ -89,6 +75,6 @@
     }
   }
 
-  MR.App = { boot, onboarding };
+  MR.App = { boot, onboarding, announce };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 })(window.MR = window.MR || {});

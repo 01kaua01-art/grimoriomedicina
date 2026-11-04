@@ -42,6 +42,7 @@
       settings: { sound: true, music: false, volume: 0.6, notifications: false, reducedMotion: false, lastMethod: 'questions', lastMode: 'countdown', lastGoal: 50 },
       onboarded: false,
       newItems: [],
+      savedAt: 0,
     };
   }
 
@@ -113,21 +114,39 @@
 
   const listeners = new Set();
   let state = null;
+  let owner = null; // id do usuário logado (null = visitante)
 
   const Store = {
     KEY, dayKey, parseDay, addDays, daysBetween, defaults,
 
+    /* ---- Slots: um save por conta neste aparelho (visitante = slot sem dono) ---- */
+    slotKey: (uid) => (uid ? `${KEY}:${uid}` : KEY),
+    key() { return this.slotKey(owner); },
+    owner() { return owner; },
+    use(uid) { owner = uid || null; },
+
+    readSlot(uid) {
+      try {
+        const raw = localStorage.getItem(this.slotKey(uid));
+        return raw ? normalize(JSON.parse(raw)) : null;
+      } catch (e) { return null; }
+    },
+    writeSlot(uid, s) { try { localStorage.setItem(this.slotKey(uid), JSON.stringify(s)); } catch (e) { /* ignora */ } },
+    clearSlot(uid) { try { localStorage.removeItem(this.slotKey(uid)); } catch (e) { /* ignora */ } },
+
+    /** Tem algum progresso que valha a pena preservar? */
+    hasProgress(s) { return !!s && (s.sessions.length > 0 || s.player.level > 1 || s.stats.bossesDefeated > 0 || !!s.active); },
+
     load() {
-      let raw = null;
-      try { raw = localStorage.getItem(KEY); } catch (e) { /* modo privado */ }
-      if (raw) {
-        try { state = normalize(JSON.parse(raw)); return state; } catch (e) { console.warn('Save corrompido, criando novo.', e); }
-      }
-      for (const k of LEGACY_KEYS) {
-        try {
-          const legacy = localStorage.getItem(k);
-          if (legacy) { state = normalize(fromLegacy(JSON.parse(legacy))); this.save(); return state; }
-        } catch (e) { console.warn('Falha ao migrar save legado', e); }
+      const slot = this.readSlot(owner);
+      if (slot) { state = slot; return state; }
+      if (!owner) {
+        for (const k of LEGACY_KEYS) {
+          try {
+            const legacy = localStorage.getItem(k);
+            if (legacy) { state = normalize(fromLegacy(JSON.parse(legacy))); this.save(); return state; }
+          } catch (e) { console.warn('Falha ao migrar save legado', e); }
+        }
       }
       state = defaults();
       return state;
@@ -136,14 +155,19 @@
     get() { return state; },
 
     save() {
-      try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { console.error('Falha ao salvar', e); }
+      state.savedAt = Date.now();
+      try { localStorage.setItem(this.key(), JSON.stringify(state)); } catch (e) { console.error('Falha ao salvar', e); }
       listeners.forEach((fn) => fn(state));
     },
 
     /** Grava sem notificar a UI (usado pelo "batimento" do timer). */
     persistQuiet() {
-      try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { /* ignora */ }
+      state.savedAt = Date.now();
+      try { localStorage.setItem(this.key(), JSON.stringify(state)); } catch (e) { /* ignora */ }
     },
+
+    /** Troca o estado inteiro (ex.: save vindo da nuvem) e grava no slot atual. */
+    replace(next) { state = normalize(next); this.save(); return state; },
 
     subscribe(fn) { listeners.add(fn); return () => listeners.delete(fn); },
 
@@ -161,8 +185,10 @@
     },
 
     reset() {
-      try { localStorage.removeItem(KEY); LEGACY_KEYS.forEach((k) => localStorage.removeItem(k)); } catch (e) { /* ignora */ }
+      this.clearSlot(owner);
+      if (!owner) { try { LEGACY_KEYS.forEach((k) => localStorage.removeItem(k)); } catch (e) { /* ignora */ } }
       state = defaults();
+      if (owner) state.onboarded = true;
       return state;
     },
 
