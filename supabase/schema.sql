@@ -26,6 +26,7 @@ create policy "saves: dono cria"   on public.saves for insert to authenticated w
 create policy "saves: dono altera" on public.saves for update to authenticated using ((select auth.uid()) = user_id) with check ((select auth.uid()) = user_id);
 create policy "saves: dono apaga"  on public.saves for delete to authenticated using ((select auth.uid()) = user_id);
 
+revoke all on public.saves from anon, authenticated; -- o Supabase dá permissões amplas por padrão
 grant select, insert, update, delete on public.saves to authenticated;
 
 -- -------------------------------------------------------------------------
@@ -66,6 +67,7 @@ create policy "ranking: dono cria"   on public.leaderboard for insert to authent
 create policy "ranking: dono altera" on public.leaderboard for update to authenticated using ((select auth.uid()) = user_id) with check ((select auth.uid()) = user_id);
 -- Sem política de delete: ninguém apaga a própria linha para recomeçar "do zero" no ranking.
 
+revoke all on public.leaderboard from anon, authenticated;
 grant select on public.leaderboard to anon, authenticated;
 grant insert, update on public.leaderboard to authenticated;
 
