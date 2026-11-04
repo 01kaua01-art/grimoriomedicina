@@ -224,7 +224,7 @@
     close(stopLoop) {
       el().classList.remove('open'); el().setAttribute('aria-hidden', 'true');
       if (stopLoop || !MR.Store.get().active) {
-        clearInterval(timer); timer = null; document.title = 'MedRPG · Grimório Clínico';
+        clearInterval(timer); timer = null; document.title = 'MedRPG';
         if (wakeLock) { wakeLock.release().catch(() => {}); wakeLock = null; }
       }
       U.render();

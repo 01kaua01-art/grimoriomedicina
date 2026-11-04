@@ -81,7 +81,7 @@ button { cursor: pointer; }
 .brand-mark { width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center; font-size: 26px; color: var(--gold);
   background: radial-gradient(circle at 30% 30%, rgba(226,184,87,.25), rgba(226,184,87,.05)); border: 1px solid rgba(226,184,87,.3);
   box-shadow: 0 0 24px rgba(226,184,87,.15), inset 0 0 12px rgba(226,184,87,.1); }
-.brand-name { font-family: var(--font-display); font-weight: 900; font-size: 20px; letter-spacing: .06em; color: var(--gold-hi); line-height: 1.1; }
+.brand-name { margin: 0; font-family: var(--font-display); font-weight: 900; font-size: 20px; letter-spacing: .06em; color: var(--gold-hi); line-height: 1.1; }
 .brand-sub { font-size: 11px; letter-spacing: .22em; text-transform: uppercase; color: var(--muted); }
 
 .nav { display: flex; flex-direction: column; gap: 4px; }
