@@ -204,7 +204,7 @@
   };
 
   const Cloud = {
-    enabled: ENABLED, status: ENABLED ? 'idle' : 'off', user: null, lastSync: null,
+    enabled: ENABLED, status: ENABLED ? 'idle' : 'off', user: null, lastSync: null, providers: null,
     weekKey, friendly, leaderboardRow,
 
     /** Lê o usuário salvo localmente, sem rede, para abrir já no slot certo. */
@@ -234,12 +234,17 @@
         }, 0);
       });
       if (urlErr) setTimeout(() => U().toast(friendly({ message: urlErr }), { icon: 'x', uiIcon: true, color: 'var(--crimson)', ms: 7000 }), 300);
+      // Quais provedores estão ativos? (evita mandar a pessoa para uma página de erro do Supabase)
+      fetch(`${cfg.supabaseUrl}/auth/v1/settings`, { headers: { apikey: cfg.supabaseAnonKey } })
+        .then((r) => r.json()).then((j) => { Cloud.providers = (j && j.external) || null; })
+        .catch(() => { /* offline: tenta mesmo assim */ });
       St().subscribe(schedulePush);
       addEventListener('visibilitychange', () => { if (document.hidden) { if (pushTimer) pushNow(); } else pullIfNewer(); });
       addEventListener('online', () => { if (Cloud.user) pushNow(); });
     },
 
     async signInGoogle() {
+      if (Cloud.providers && !Cloud.providers.google) throw new Error('O login com Google ainda não foi ativado. Por enquanto, entre com e-mail e senha.');
       const { error } = await client.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: redirectUrl() } });
       if (error) throw new Error(friendly(error));
     },

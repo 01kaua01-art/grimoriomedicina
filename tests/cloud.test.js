@@ -27,6 +27,7 @@ function makeEnv() {
     console, Math, Date, JSON, Object, Array, Set, Map, String, Number, Promise, URL, URLSearchParams,
     setTimeout: (fn) => { fn(); return 0; }, clearTimeout: () => {},
     addEventListener: () => {}, localStorage,
+    fetch: async () => ({ json: async () => ({ external: { email: true, google: false } }) }),
     location: { search: '', origin: 'http://localhost', pathname: '/', hash: '' }, history: { replaceState() {} },
   };
   ctx.window = ctx; ctx.globalThis = ctx;
