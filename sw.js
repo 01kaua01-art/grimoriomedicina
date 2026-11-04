@@ -1,8 +1,8 @@
 /* Service worker: deixa o MedRPG instalável e jogável offline (quando servido via http/https).
  * Estratégia: rede primeiro (pega atualizações), cache como reserva. */
-const CACHE = 'medrpg-v3.1.1';
+const CACHE = 'medrpg-v3.2.0';
 const ASSETS = [
-  './', './index.html', './css/style.css', './manifest.webmanifest', './assets/icon.svg',
+  './', './index.html', './css/style.css', './css/legal.css', './privacidade.html', './termos.html', './manifest.webmanifest', './assets/icon.svg',
   './js/config.js', './js/vendor/supabase.js', './js/cloud.js', './js/views/account.js', './js/views/ranking.js',
   './js/icons.js', './js/data.js', './js/store.js', './js/engine.js', './js/audio.js', './js/fx.js', './js/ui.js',
   './js/views/battle.js', './js/views/focus.js', './js/views/results.js', './js/views/hero.js', './js/views/arsenal.js',

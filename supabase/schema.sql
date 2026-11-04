@@ -121,3 +121,27 @@ drop trigger if exists saves_touch on public.saves;
 create trigger saves_touch
   before insert or update on public.saves
   for each row execute function public.touch_updated_at();
+
+-- -------------------------------------------------------------------------
+-- 4. Exclusão de conta pelo próprio usuário (LGPD / políticas do Google).
+--    Apaga só a conta de quem chama; saves e ranking caem junto (cascade).
+--    SECURITY DEFINER é intencional: o usuário comum não pode apagar de auth.users.
+-- -------------------------------------------------------------------------
+create or replace function public.delete_my_account()
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  uid uuid := auth.uid();
+begin
+  if uid is null then
+    raise exception 'É preciso estar logado para excluir a conta.' using errcode = '42501';
+  end if;
+  delete from auth.users where id = uid;
+end;
+$$;
+
+revoke all on function public.delete_my_account() from public, anon;
+grant execute on function public.delete_my_account() to authenticated;

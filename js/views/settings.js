@@ -79,7 +79,8 @@
             <section class="card">
               <h2 class="card-title">${gi('caduceus')} Sobre</h2>
               <p class="muted" style="font-size:13px;margin:0">MedRPG · Grimório Clínico v3. Funciona offline e roda direto no navegador.<br>
-              Ícones: <a href="https://game-icons.net" target="_blank" rel="noopener" style="color:var(--gold)">game-icons.net</a> (CC BY 3.0, Lorc, Delapouite e colaboradores) e <a href="https://lucide.dev" target="_blank" rel="noopener" style="color:var(--gold)">Lucide</a> (ISC).</p>
+              Ícones: <a href="https://game-icons.net" target="_blank" rel="noopener" style="color:var(--gold)">game-icons.net</a> (CC BY 3.0, Lorc, Delapouite e colaboradores) e <a href="https://lucide.dev" target="_blank" rel="noopener" style="color:var(--gold)">Lucide</a> (ISC).<br>
+              <a href="privacidade.html" target="_blank" style="color:var(--gold)">Política de Privacidade</a> · <a href="termos.html" target="_blank" style="color:var(--gold)">Termos de Uso</a></p>
             </section>
           </div>
         </div>`;

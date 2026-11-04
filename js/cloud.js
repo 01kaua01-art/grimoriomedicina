@@ -274,6 +274,19 @@
     },
     syncNow: () => pushNow(true),
 
+    /** Apaga a conta, o save na nuvem e a linha do ranking. O aparelho volta a ser visitante. */
+    async deleteAccount() {
+      if (!client || !Cloud.user) throw new Error('Você não está logado.');
+      const uid = Cloud.user.id;
+      clearTimeout(pushTimer); pushTimer = null;
+      const { error } = await client.rpc('delete_my_account');
+      if (error) throw new Error(friendly(error));
+      St().clearSlot(uid);
+      try { await client.auth.signOut({ scope: 'local' }); } catch (e) { /* a sessão já não existe */ }
+      try { localStorage.removeItem(AUTH_KEY); } catch (e) { /* ignora */ }
+      switchToGuest();
+    },
+
     /** metric: week | total | streak | bosses | level */
     async fetchLeaderboard(metric) {
       if (!client) throw new Error('Nuvem desativada.');

@@ -13,6 +13,7 @@ function makeEnv() {
       signInWithPassword: async ({ email }) => { const user = { id: 'u-' + email, email, user_metadata: {} }; localStorage.setItem('sb-test-auth-token', JSON.stringify({ user })); authCb('SIGNED_IN', { user }); return { error: null }; },
       signOut: async () => { localStorage.removeItem('sb-test-auth-token'); authCb('SIGNED_OUT', null); return { error: null }; },
     },
+    rpc: async (name) => { if (name === 'delete_my_account') { const uid = JSON.parse(localStorage.getItem('sb-test-auth-token')).user.id; db.saves.delete(uid); db.leaderboard.delete(uid); } return { error: null }; },
     from(table) {
       const t = db[table]; const q = { filters: {} };
       const api = {
@@ -123,6 +124,17 @@ const test = async (name, fn) => { await fn(); passed++; console.log('  ok -', n
     assert.strictEqual(env.MR.Store.get().sessions[0].minutes, 30);
     assert.strictEqual(env.db.saves.get('u-edu@x.com').data.sessions[0].minutes, 30);
     assert.strictEqual(env.MR.Store.readSlot(null), null, 'slot de visitante esvaziado');
+  });
+
+  await test('excluir conta apaga nuvem e o save local da conta', async () => {
+    const { MR, db } = makeEnv();
+    play(MR, 25);
+    await MR.Cloud.signInEmail('fer@x.com', 'secret1'); await settle();
+    assert(db.saves.has('u-fer@x.com'));
+    await MR.Cloud.deleteAccount(); await settle();
+    assert(!db.saves.has('u-fer@x.com') && !db.leaderboard.has('u-fer@x.com'));
+    assert.strictEqual(MR.Store.owner(), null);
+    assert.strictEqual(MR.Store.readSlot('u-fer@x.com'), null);
   });
 
   await test('linha do ranking: semana conta só a partir de segunda', () => {

@@ -55,7 +55,8 @@
             <button class="btn ${C().enabled ? '' : 'primary'}" id="ob-go">${gi('crossed-swords')} Jogar</button>
           </div>
           <span class="muted" style="font-size:12px;text-transform:none;letter-spacing:0">O progresso fica só neste aparelho. Dá para criar uma conta depois e levar tudo junto.</span>
-        </div>`, { dismissable: false, onClose: () => { welcomeEntry = null; } });
+        </div>
+        <p class="muted" style="font-size:12px;text-align:center;margin:16px 0 0">Ao criar uma conta você concorda com os <a href="termos.html" target="_blank" style="color:var(--gold)">Termos de Uso</a> e a <a href="privacidade.html" target="_blank" style="color:var(--gold)">Política de Privacidade</a>.</p>`, { dismissable: false, onClose: () => { welcomeEntry = null; } });
       const go = () => {
         const s = MR.Store.get();
         const v = welcomeEntry.el.querySelector('#ob-name').value.trim();
@@ -173,7 +174,9 @@
         <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px">
           ${provider === 'email' ? `<button class="btn sm" data-act="acc-newpass">${ui('key-round')} Trocar senha</button>` : ''}
           <button class="btn sm danger" data-act="acc-logout">${ui('log-out')} Sair da conta</button>
-        </div></section>`;
+        </div>
+        <div class="set-row" style="margin-top:8px"><div><b>Excluir minha conta</b><span>Apaga para sempre a conta, o progresso na nuvem e sua posição no ranking.</span></div>
+          <button class="btn sm danger" data-act="acc-delete">${ui('trash-2')} Excluir</button></div></section>`;
     },
 
     /** Botão da conta no HUD. */
@@ -203,6 +206,20 @@
       ${cloudButtons()}`, { key: 'acc-open' });
   });
   U.on('acc-sync', guardOnline(async () => { await C().syncNow(); U.render(); }));
+  U.on('acc-delete', () => {
+    const m = U.modal(`<h2>${ui('trash-2')} Excluir conta para sempre?</h2>
+      <p class="sub">Isso apaga <b>imediatamente</b> sua conta, todo o progresso salvo na nuvem e sua posição no ranking. <b>Não há como desfazer.</b> Se quiser guardar uma cópia, use antes <b>Backup → Exportar save</b>.</p>
+      <div class="field"><label for="del-ok">Digite EXCLUIR para confirmar</label><input id="del-ok" class="input" autocomplete="off"></div>
+      <div class="form-error" id="del-err" role="alert"></div>
+      <div class="modal-actions"><button class="btn ghost" data-act="modal-close">Cancelar</button><button class="btn danger" id="del-go" disabled>${ui('trash-2')} Excluir conta</button></div>`, { key: 'acc-delete' });
+    const inp = m.el.querySelector('#del-ok'); const go = m.el.querySelector('#del-go');
+    inp.addEventListener('input', () => { go.disabled = inp.value.trim().toUpperCase() !== 'EXCLUIR'; });
+    go.addEventListener('click', async () => {
+      go.disabled = true; go.innerHTML = `${ui('loader-circle', 'spin')} Excluindo…`;
+      try { await C().deleteAccount(); m.close(true); U.toast('Sua conta e seus dados foram excluídos.', { icon: 'check', uiIcon: true, color: 'var(--green)', ms: 6000 }); }
+      catch (e) { m.el.querySelector('#del-err').textContent = e.message; go.disabled = false; go.innerHTML = `${ui('trash-2')} Excluir conta`; }
+    });
+  });
   U.on('acc-logout', async () => {
     const ok = await U.confirm({ title: 'Sair da conta?', icon: 'hood', ok: 'Sair',
       text: 'Seu progresso continua salvo na nuvem. Neste aparelho você volta a jogar como visitante.' });
